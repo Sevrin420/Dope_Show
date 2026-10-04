@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Dope Show</title>
+<style>
+  :root { --bg:#0b0b12; --panel:#15151f; --line:#2a2a3a; --fg:#e8e8f0; --dim:#8a8aa0; --green:#3dff8a; --red:#ff4d5e; --gold:#ffd23d; --blue:#4da3ff; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg); font-family:ui-monospace,Menlo,Consolas,monospace; overflow:hidden; }
+  #app { display:flex; flex-direction:column; height:100%; align-items:center; }
+  #hud { display:flex; flex-wrap:wrap; gap:6px 18px; justify-content:center; padding:8px 12px; font-size:14px; width:100%; background:var(--panel); border-bottom:1px solid var(--line); }
+  #hud b { color:var(--gold); }
+  #hud .bad { color:var(--red); } #hud .good { color:var(--green); }
+  #stage { position:relative; flex:1; width:100%; display:flex; justify-content:center; align-items:center; min-height:0; }
+  canvas { background:radial-gradient(circle at center,#14141f 0%,#0b0b12 75%); max-width:100%; max-height:100%; aspect-ratio:1; touch-action:none; }
+  #toast { position:absolute; top:8px; left:50%; transform:translateX(-50%); background:#000c; border:1px solid var(--line); padding:6px 14px; border-radius:6px; font-size:14px; opacity:0; transition:opacity .3s; pointer-events:none; text-align:center; max-width:90%; }
+  #toast.show { opacity:1; }
+  button { font:inherit; background:#22222f; color:var(--fg); border:1px solid #3a3a52; border-radius:5px; padding:5px 10px; cursor:pointer; }
+  button:hover { background:#2d2d40; } button:disabled { opacity:.35; cursor:default; }
+  button.primary { background:var(--green); color:#04140a; border-color:var(--green); font-weight:bold; }
+  #enter { position:absolute; bottom:14px; left:50%; transform:translateX(-50%); display:none; font-size:16px; padding:10px 22px; }
+  .overlay { position:absolute; inset:0; background:#000c; display:none; align-items:center; justify-content:center; padding:10px; }
+  .overlay.show { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px 22px; max-width:560px; width:100%; max-height:100%; overflow:auto; }
+  .card h1,.card h2 { margin:0 0 8px; color:var(--green); }
+  .card p,.card li { color:var(--dim); line-height:1.45; font-size:14px; }
+  .card li b,.card p b { color:var(--fg); }
+  table { width:100%; border-collapse:collapse; margin:10px 0; font-size:14px; }
+  th,td { text-align:left; padding:5px 4px; border-bottom:1px solid var(--line); }
+  td.num { text-align:right; }
+  .row { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; align-items:center; }
+  .spacer { flex:1; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hud"></div>
+  <div id="stage">
+    <canvas id="c" width="800" height="800"></canvas>
+    <div id="toast"></div>
+    <button id="enter" class="primary">Enter tower [E]</button>
+
+    <div id="title" class="overlay show"><div class="card">
+      <h1>DOPE SHOW</h1>
+      <p>You owe the Loan Shark. You have 30 days. Run the wheel, buy low, sell high &mdash; and don't get caught.</p>
+      <ul>
+        <li><b>Move:</b> WASD / arrows (or hold the mouse / finger toward where you want to go). You can only run on the roads.</li>
+        <li><b>Towers:</b> stop on a tower and press <b>E</b> to trade. The <b>center tower</b> also has the Loan Shark and a medic.</li>
+        <li><b>Buyers</b> <span style="color:var(--green)">($)</span> wander the roads and pay a premium for the drug they want &mdash; run into them.</li>
+        <li><b>Cops</b> <span style="color:var(--blue)">&#9650;</span> patrol and confiscate stock. <b>Gangs</b> <span style="color:var(--red)">&#9650;</span> chase you and rob you.</li>
+        <li><b>Dash:</b> <b>Space</b> gives a short burst of speed and makes you untouchable. It recharges.</li>
+        <li>Debt grows 8% a day. Final score = cash &minus; debt.</li>
+      </ul>
+      <div class="row"><span id="best" style="color:var(--dim)"></span><span class="spacer"></span><button class="primary" id="start">Start</button></div>
+    </div></div>
+
+    <div id="market" class="overlay"><div class="card" id="marketCard"></div></div>
+    <div id="over" class="overlay"><div class="card" id="overCard"></div></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ───────────────────────── Config ─────────────────────────
+const W = 800, CX = 400, CY = 400, RING = 290;
+const TOTAL_DAYS = 30, DAY_LEN = 24;          // seconds per in-game day
+const START_CASH = 2000, START_DEBT = 5500, INTEREST = 0.08, CAPACITY = 60;
+const PLAYER_SPEED = 170, DASH_SPEED = 430, DASH_TIME = 0.28, DASH_CD = 1.6;
+const DRUGS = [
+  { name:'Weed',   key:'W', min:300,   max:900,   color:'#5fdc5f' },
+  { name:'Speed',  key:'S', min:70,    max:250,   color:'#ffe94d' },
+  { name:'Ludes',  key:'L', min:10,    max:60,    color:'#c28bff' },
+  { name:'Acid',   key:'A', min:1000,  max:4500,  color:'#ff8bd5' },
+  { name:'Heroin', key:'H', min:5000,  max:14000, color:'#ff9f4d' },
+  { name:'Coke',   key:'C', min:15000, max:30000, color:'#9fe8ff' },
+];
+const NAMES = ['The Docks','Chinatown','Southside','The Strip','Uptown'];
+const HUB_NAME = 'The Spire';
+
+// ───────────────────────── World graph ─────────────────────────
+const nodes = [{ x:CX, y:CY, name:HUB_NAME, hub:true }];
+for (let i = 0; i < 5; i++) {
+  const a = -Math.PI/2 + i * 2*Math.PI/5;
+  nodes.push({ x:CX + Math.cos(a)*RING, y:CY + Math.sin(a)*RING, name:NAMES[i], hub:false });
+}
+const edges = [];
+function addEdge(a, b) {
+  const dx = nodes[b].x - nodes[a].x, dy = nodes[b].y - nodes[a].y, len = Math.hypot(dx, dy);
+  edges.push({ a, b, len, dx:dx/len, dy:dy/len });
+}
+for (let i = 1; i <= 5; i++) addEdge(0, i);                 // spokes
+for (let i = 1; i <= 5; i++) addEdge(i, i % 5 + 1);          // rim
+const adj = nodes.map((_, n) => edges.map((e, i) => i).filter(i => edges[i].a === n || edges[i].b === n));
+const edgePos = (e, t) => ({ x: nodes[edges[e].a].x + edges[e].dx*edges[e].len*t, y: nodes[edges[e].a].y + edges[e].dy*edges[e].len*t });
+const outDir = (ei, n) => edges[ei].a === n ? { x:edges[ei].dx, y:edges[ei].dy } : { x:-edges[ei].dx, y:-edges[ei].dy };
+
+// ───────────────────────── State ─────────────────────────
+let G, state = 'title';
+const $ = id => document.getElementById(id);
+const rnd = (a, b) => a + Math.random()*(b-a);
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const fmt = n => (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString();
+
+function newGame() {
+  G = {
+    day:1, dayT:0, cash:START_CASH, debt:START_DEBT, health:100,
+    inv: DRUGS.map(() => 0), cost: DRUGS.map(() => 0),
+    prices: [], event:null, heat:0,
+    p:{ e:0, t:0, dash:0, cd:0, inv:0 },
+    enemies:[], buyers:[], floats:[], buyerT:2, time:0,
+  };
+  rollPrices();
+  spawnEnemies();
+}
+const used = () => G.inv.reduce((a, b) => a + b, 0);
+
+function rollPrices() {
+  G.prices = nodes.map(() => DRUGS.map(d => {
+    const r = Math.pow(Math.random(), 1.3);
+    return Math.max(1, Math.round(d.min + (d.max - d.min) * r));
+  }));
+  if (G.event && G.event.drug !== undefined) {
+    G.prices.forEach(row => row[G.event.drug] = Math.max(1, Math.round(row[G.event.drug] * G.event.mult)));
+  }
+}
+
+// ───────────────────────── Enemies / buyers ─────────────────────────
+function farFromPlayer() {
+  const pp = edgePos(G.p.e, G.p.t);
+  for (let k = 0; k < 40; k++) {
+    const e = Math.floor(Math.random()*edges.length), t = Math.random(), s = edgePos(e, t);
+    if (Math.hypot(s.x - pp.x, s.y - pp.y) > 170) return { e, t };
+  }
+  return { e:0, t:0.5 };
+}
+function spawnEnemies() {
+  const cops = 2 + Math.floor(G.day/6) + G.heat, gangs = 1 + Math.floor(G.day/8);
+  G.enemies = [];
+  for (let i = 0; i < cops; i++) G.enemies.push({ type:'cop', ...farFromPlayer(), dir:Math.random()<.5?1:-1, speed:rnd(85,110) });
+  for (let i = 0; i < gangs; i++) G.enemies.push({ type:'gang', ...farFromPlayer(), dir:Math.random()<.5?1:-1, speed:rnd(105,125) });
+}
+function moveOnGraph(o, dist, chooser) {
+  const e = edges[o.e];
+  o.t += o.dir * dist / e.len;
+  if (o.t > 0 && o.t < 1) return;
+  const node = o.t >= 1 ? e.b : e.a;
+  const opts = adj[node].filter(i => i !== o.e);
+  const next = opts.length ? chooser(node, opts) : o.e;
+  o.e = next; o.t = edges[next].a === node ? 0 : 1; o.dir = o.t === 0 ? 1 : -1;
+}
+function spawnBuyer() {
+  if (G.buyers.length >= 3) return;
+  const { e, t } = farFromPlayer(), d = Math.floor(Math.random()*DRUGS.length);
+  const avg = (DRUGS[d].min + DRUGS[d].max) / 2 * 0.7;
+  G.buyers.push({ e, t, drug:d, price:Math.round(avg * rnd(1.5, 2.1)), life:rnd(18, 28) });
+}
+
+// ───────────────────────── Input ─────────────────────────
+const keys = {};
+let pointer = null;
+addEventListener('keydown', ev => {
+  keys[ev.code] = true;
+  if (ev.code === 'Space') { ev.preventDefault(); if (state === 'play') dash(); }
+  if ((ev.code === 'KeyE' || ev.code === 'Enter') && state === 'play') tryEnter();
+  if (ev.code === 'Escape' && state === 'market') closeMarket();
+  if (/Arrow/.test(ev.code)) ev.preventDefault();
+});
+addEventListener('keyup', ev => keys[ev.code] = false);
+const cv = $('c');
+function setPointer(ev) { const r = cv.getBoundingClientRect(); pointer = { x:(ev.clientX - r.left)/r.width*W, y:(ev.clientY - r.top)/r.height*W }; }
+cv.addEventListener('pointerdown', ev => { setPointer(ev); cv.setPointerCapture(ev.pointerId); });
+cv.addEventListener('pointermove', ev => { if (pointer) setPointer(ev); });
+cv.addEventListener('pointerup', () => pointer = null);
+cv.addEventListener('pointercancel', () => pointer = null);
+function getInput() {
+  let x = (keys.ArrowRight||keys.KeyD ? 1 : 0) - (keys.ArrowLeft||keys.KeyA ? 1 : 0);
+  let y = (keys.ArrowDown||keys.KeyS ? 1 : 0) - (keys.ArrowUp||keys.KeyW ? 1 : 0);
+  if (!x && !y && pointer) {
+    const pp = edgePos(G.p.e, G.p.t), dx = pointer.x - pp.x, dy = pointer.y - pp.y, d = Math.hypot(dx, dy);
+    if (d > 18) { x = dx/d; y = dy/d; }
+  }
+  const m = Math.hypot(x, y);
+  return m ? { x:x/m, y:y/m } : { x:0, y:0 };
+}
+function dash() { if (G.p.cd <= 0) { G.p.dash = DASH_TIME; G.p.cd = DASH_CD; } }
+
+// ───────────────────────── Player ─────────────────────────
+function playerNode() { const p = G.p; return p.t <= 0 ? edges[p.e].a : p.t >= 1 ? edges[p.e].b : -1; }
+function updatePlayer(dt) {
+  const p = G.p, inp = getInput();
+  if (p.inv > 0) p.inv -= dt;
+  if (p.cd > 0) p.cd -= dt;
+  if (p.dash > 0) p.dash -= dt;
+  let n = playerNode();
+  if (n >= 0 && (inp.x || inp.y)) {            // steer onto another road at a junction
+    let best = p.e, bs = 0.35;
+    for (const ei of adj[n]) {
+      const d = outDir(ei, n), s = d.x*inp.x + d.y*inp.y;
+      if (s > bs) { bs = s; best = ei; }
+    }
+    if (best !== p.e) { p.e = best; p.t = edges[best].a === n ? 0 : 1; }
+  }
+  const e = edges[p.e], s = e.dx*inp.x + e.dy*inp.y;
+  const speed = p.dash > 0 ? DASH_SPEED : PLAYER_SPEED;
+  const dir = p.dash > 0 && Math.abs(s) < 0.05 ? 0 : s;
+  p.t = Math.min(1, Math.max(0, p.t + dir * speed * dt / e.len));
+}
+
+// ───────────────────────── Hits & rewards ─────────────────────────
+function say(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(say.h); say.h = setTimeout(() => t.classList.remove('show'), 3200);
+}
+function float(text, x, y, color) { G.floats.push({ text, x, y, color, life:1.4 }); }
+
+function hit(en) {
+  const p = G.p, pos = edgePos(p.e, p.t);
+  p.inv = 1.8;
+  G.health -= en.type === 'gang' ? 22 : 12;
+  if (en.type === 'cop') {
+    const stacks = G.inv.map((q, i) => i).filter(i => G.inv[i] > 0);
+    if (stacks.length) {
+      const i = pick(stacks), lost = Math.max(1, Math.ceil(G.inv[i] * 0.4));
+      G.inv[i] -= lost; if (!G.inv[i]) G.cost[i] = 0;
+      say(`Cops confiscated ${lost} ${DRUGS[i].name}!`); float(`-${lost} ${DRUGS[i].name}`, pos.x, pos.y - 20, '#4da3ff');
+    } else {
+      const fine = Math.min(G.cash, 300); G.cash -= fine;
+      say(`Cops found nothing... but fined you ${fmt(fine)}`); float('-' + fmt(fine), pos.x, pos.y - 20, '#4da3ff');
+    }
+  } else {
+    const lost = Math.round(G.cash * 0.2); G.cash -= lost;
+    say(`The gang robbed you of ${fmt(lost)}!`); float('-' + fmt(lost), pos.x, pos.y - 20, '#ff4d5e');
+  }
+  if (G.health <= 0) endGame('You were taken down.');
+}
+
+function touchBuyer(b) {
+  if (G.inv[b.drug] <= 0) return false;
+  const q = Math.min(G.inv[b.drug], Math.ceil(rnd(6, 14)));
+  G.inv[b.drug] -= q; if (!G.inv[b.drug]) G.cost[b.drug] = 0;
+  const gain = q * b.price; G.cash += gain;
+  const pos = edgePos(b.e, b.t);
+  float(`+${fmt(gain)}`, pos.x, pos.y - 24, '#3dff8a');
+  say(`Buyer paid ${fmt(b.price)} each for ${q} ${DRUGS[b.drug].name} (+${fmt(gain)})`);
+  return true;
+}
+
+// ───────────────────────── Day cycle & events ─────────────────────────
+function nextDay() {
+  G.day++;
+  if (G.day > TOTAL_DAYS) return endGame('The 30 days are up.');
+  G.debt = Math.round(G.debt * (1 + INTEREST));
+  G.event = null; G.heat = 0;
+  const r = Math.random();
+  if (r < 0.14) {
+    const d = Math.floor(Math.random()*DRUGS.length);
+    G.event = { drug:d, mult:rnd(2.4, 3.8) };
+    say(`Supply dried up! ${DRUGS[d].name} prices have skyrocketed today.`);
+  } else if (r < 0.28) {
+    const d = Math.floor(Math.random()*DRUGS.length);
+    G.event = { drug:d, mult:rnd(0.2, 0.4) };
+    say(`A shipment flooded the streets: ${DRUGS[d].name} is dirt cheap today!`);
+  } else if (r < 0.38) {
+    G.heat = 2; say('Heat wave! Extra cops are out on the streets today.');
+  } else if (r < 0.48) {
+    const gain = Math.round(rnd(200, 1500)); G.cash += gain; say(`You found a dropped wallet: +${fmt(gain)}`);
+  } else if (r < 0.56 && used() < CAPACITY) {
+    const d = Math.floor(Math.random()*DRUGS.length), q = Math.min(CAPACITY - used(), 1 + Math.floor(rnd(1, 6)));
+    G.inv[d] += q; say(`You found ${q} ${DRUGS[d].name} in an alley!`);
+  }
+  rollPrices();
+  spawnEnemies();
+}
+
+// ───────────────────────── Update ─────────────────────────
+function update(dt) {
+  G.time += dt;
+  G.dayT += dt;
+  if (G.dayT >= DAY_LEN) { G.dayT -= DAY_LEN; nextDay(); if (state !== 'play') return; }
+  updatePlayer(dt);
+  const pp = edgePos(G.p.e, G.p.t);
+  const target = pp;
+  for (const en of G.enemies) {
+    const chooser = en.type === 'gang'
+      ? (node, opts) => {
+          if (Math.random() < 0.15) return pick(opts);
+          let best = opts[0], bd = 1e9;
+          for (const i of opts) {
+            const far = edges[i].a === node ? edges[i].b : edges[i].a;
+            const d = Math.hypot(nodes[far].x - target.x, nodes[far].y - target.y);
+            if (d < bd) { bd = d; best = i; }
+          }
+          return best;
+        }
+      : (node, opts) => pick(opts);
+    moveOnGraph(en, en.speed * dt, chooser);
+    const ep = edgePos(en.e, en.t);
+    if (G.p.inv <= 0 && G.p.dash <= 0 && Math.hypot(ep.x - pp.x, ep.y - pp.y) < 20) { hit(en); if (state !== 'play') return; }
+  }
+  G.buyerT -= dt;
+  if (G.buyerT <= 0) { spawnBuyer(); G.buyerT = rnd(3, 6); }
+  for (let i = G.buyers.length - 1; i >= 0; i--) {
+    const b = G.buyers[i]; b.life -= dt;
+    const bp = edgePos(b.e, b.t);
+    if (Math.hypot(bp.x - pp.x, bp.y - pp.y) < 24 && touchBuyer(b)) b.life = 0;
+    if (b.life <= 0) G.buyers.splice(i, 1);
+  }
+  for (let i = G.floats.length - 1; i >= 0; i--) { const f = G.floats[i]; f.life -= dt; f.y -= 30*dt; if (f.life <= 0) G.floats.splice(i, 1); }
+  const n = playerNode();
+  $('enter').style.display = n >= 0 ? 'block' : 'none';
+  if (n >= 0) $('enter').textContent = `Enter ${nodes[n].name} [E]`;
+}
+
+// ───────────────────────── Market UI ─────────────────────────
+let marketNode = -1;
+function tryEnter() { const n = playerNode(); if (n >= 0) openMarket(n); }
+$('enter').addEventListener('click', tryEnter);
+function openMarket(n) { marketNode = n; state = 'market'; $('enter').style.display = 'none'; renderMarket(); $('market').classList.add('show'); }
+function closeMarket() { state = 'play'; $('market').classList.remove('show'); last = performance.now(); }
+
+function renderMarket() {
+  const n = marketNode, node = nodes[n], pr = G.prices[n];
+  let h = `<h2>${node.name}</h2><p>Day ${G.day}/${TOTAL_DAYS} &middot; Cash <b>${fmt(G.cash)}</b> &middot; Carrying <b>${used()}/${CAPACITY}</b>`;
+  if (G.event && G.event.drug !== undefined) h += ` &middot; <b>${DRUGS[G.event.drug].name}</b> ${G.event.mult > 1 ? 'spiking' : 'crashing'}`;
+  h += `</p><table><tr><th>Drug</th><th class="num">Price</th><th class="num">Own</th><th class="num">Avg paid</th><th>Buy</th><th>Sell</th></tr>`;
+  DRUGS.forEach((d, i) => {
+    const cheap = pr[i] < (d.min + d.max)/2 * 0.7, dear = pr[i] > (d.min + d.max)/2 * 1.3;
+    const maxBuy = Math.min(Math.floor(G.cash / pr[i]), CAPACITY - used());
+    h += `<tr><td style="color:${d.color}">${d.name}</td>
+      <td class="num" style="color:${cheap?'var(--green)':dear?'var(--red)':'inherit'}">${fmt(pr[i])}</td>
+      <td class="num">${G.inv[i]}</td><td class="num">${G.inv[i] ? fmt(G.cost[i]) : '-'}</td>
+      <td><button data-a="buy" data-i="${i}" data-q="1" ${maxBuy<1?'disabled':''}>+1</button>
+          <button data-a="buy" data-i="${i}" data-q="${maxBuy}" ${maxBuy<1?'disabled':''}>Max</button></td>
+      <td><button data-a="sell" data-i="${i}" data-q="1" ${G.inv[i]<1?'disabled':''}>-1</button>
+          <button data-a="sell" data-i="${i}" data-q="${G.inv[i]}" ${G.inv[i]<1?'disabled':''}>All</button></td></tr>`;
+  });
+  h += `</table>`;
+  if (node.hub) {
+    h += `<p>Loan Shark: you owe <b style="color:var(--red)">${fmt(G.debt)}</b> (+${Math.round(INTEREST*100)}%/day) &middot; Health <b>${Math.round(G.health)}%</b></p><div class="row">
+      <button data-a="pay" data-q="1000" ${G.cash<1||G.debt<1?'disabled':''}>Pay $1,000</button>
+      <button data-a="pay" data-q="all" ${G.cash<1||G.debt<1?'disabled':''}>Pay max</button>
+      <button data-a="borrow" ${G.day>=TOTAL_DAYS?'disabled':''}>Borrow $1,000</button>
+      <button data-a="heal" ${G.cash<400||G.health>=100?'disabled':''}>Medic: heal $400</button></div>`;
+  }
+  h += `<div class="row"><span class="spacer"></span><button class="primary" data-a="close">Back to the streets [Esc]</button></div>`;
+  $('marketCard').innerHTML = h;
+}
+$('marketCard').addEventListener('click', ev => {
+  const b = ev.target.closest('button'); if (!b || b.disabled) return;
+  const a = b.dataset.a, i = +b.dataset.i;
+  if (a === 'close') return closeMarket();
+  const price = G.prices[marketNode][i];
+  if (a === 'buy') {
+    const q = Math.min(+b.dataset.q, Math.floor(G.cash/price), CAPACITY - used());
+    if (q > 0) { G.cost[i] = (G.cost[i]*G.inv[i] + price*q) / (G.inv[i] + q); G.inv[i] += q; G.cash -= q*price; }
+  } else if (a === 'sell') {
+    const q = Math.min(+b.dataset.q, G.inv[i]);
+    G.cash += q*price; G.inv[i] -= q; if (!G.inv[i]) G.cost[i] = 0;
+  } else if (a === 'pay') {
+    const amt = Math.min(G.cash, G.debt, b.dataset.q === 'all' ? Infinity : +b.dataset.q);
+    G.cash -= amt; G.debt -= amt;
+  } else if (a === 'borrow') { G.cash += 1000; G.debt += 1000; }
+  else if (a === 'heal' && G.cash >= 400) { G.cash -= 400; G.health = 100; }
+  renderMarket(); updateHud();
+});
+
+// ───────────────────────── HUD / end ─────────────────────────
+function updateHud() {
+  const hp = Math.round(G.health);
+  $('hud').innerHTML = `<span>Day <b>${G.day}/${TOTAL_DAYS}</b></span><span>Cash <b class="good">${fmt(G.cash)}</b></span>
+    <span>Debt <b class="bad">${fmt(G.debt)}</b></span><span>Health <b class="${hp<40?'bad':''}">${hp}%</b></span>
+    <span>Pack <b>${used()}/${CAPACITY}</b></span><span>Dash <b>${G.p.cd > 0 ? Math.ceil(G.p.cd*10)/10 + 's' : 'ready'}</b></span>`;
+}
+function endGame(reason) {
+  state = 'over'; $('enter').style.display = 'none'; $('market').classList.remove('show');
+  const score = Math.round(G.cash - G.debt);
+  let best = 0; try { best = +localStorage.getItem('dopeshow-best') || 0; } catch (e) {}
+  const isBest = score > best; if (isBest) try { localStorage.setItem('dopeshow-best', score); } catch (e) {}
+  const dead = G.health <= 0;
+  $('overCard').innerHTML = `<h2>${dead ? 'BUSTED' : 'GAME OVER'}</h2><p>${reason}</p>
+    <p>Cash <b>${fmt(G.cash)}</b> &minus; Debt <b>${fmt(G.debt)}</b> = <b style="color:${score>=0?'var(--green)':'var(--red)'}">${fmt(score)}</b>${isBest ? ' &mdash; <b>new best!</b>' : ''}</p>
+    <div class="row"><span class="spacer"></span><button class="primary" id="again">Play again</button></div>`;
+  $('over').classList.add('show');
+  $('again').onclick = start;
+}
+function start() {
+  newGame(); state = 'play'; last = performance.now();
+  $('title').classList.remove('show'); $('over').classList.remove('show'); $('market').classList.remove('show');
+  say('Find a tower, buy low, sell high. Watch for cops!');
+}
+$('start').onclick = start;
+try { const b = +localStorage.getItem('dopeshow-best'); if (b) $('best').textContent = 'Best: ' + fmt(b); } catch (e) {}
+
+// ───────────────────────── Render ─────────────────────────
+const ctx = cv.getContext('2d');
+function tri(x, y, r, color, ang) {
+  ctx.fillStyle = color; ctx.beginPath();
+  for (let k = 0; k < 3; k++) { const a = ang + k*2*Math.PI/3; ctx[k ? 'lineTo' : 'moveTo'](x + Math.cos(a)*r, y + Math.sin(a)*r); }
+  ctx.closePath(); ctx.fill();
+}
+function draw() {
+  ctx.clearRect(0, 0, W, W);
+  ctx.lineCap = 'round';
+  for (const e of edges) {
+    const a = nodes[e.a], b = nodes[e.b];
+    ctx.strokeStyle = '#242436'; ctx.lineWidth = 22; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    ctx.strokeStyle = '#3a3a55'; ctx.lineWidth = 2; ctx.setLineDash([10, 12]); ctx.stroke(); ctx.setLineDash([]);
+  }
+  if (!G) return;
+  const pn = playerNode();
+  nodes.forEach((n, i) => {
+    const r = n.hub ? 40 : 30, glow = n.hub ? '#ffd23d' : '#8b6bff';
+    ctx.save(); ctx.shadowColor = glow; ctx.shadowBlur = pn === i ? 28 : 12;
+    ctx.fillStyle = '#12121c'; ctx.strokeStyle = glow; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.roundRect(n.x - r, n.y - r, r*2, r*2, 8); ctx.fill(); ctx.stroke(); ctx.restore();
+    ctx.fillStyle = glow; // windows
+    for (let wy = -1; wy <= 1; wy++) for (let wx = -1; wx <= 1; wx++) ctx.fillRect(n.x + wx*r*0.5 - 3, n.y + wy*r*0.5 - 3, 6, 6);
+    ctx.fillStyle = '#e8e8f0'; ctx.font = 'bold 13px ui-monospace,monospace'; ctx.textAlign = 'center';
+    ctx.fillText(n.name, n.x, n.y + r + 18);
+  });
+  for (const b of G.buyers) {
+    const p = edgePos(b.e, b.t), blink = b.life < 5 && Math.floor(G.time*4) % 2;
+    if (blink) continue;
+    ctx.fillStyle = '#0d2a18'; ctx.strokeStyle = '#3dff8a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 15, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = DRUGS[b.drug].color; ctx.font = 'bold 14px ui-monospace,monospace'; ctx.textAlign = 'center'; ctx.fillText(DRUGS[b.drug].key, p.x, p.y + 5);
+    ctx.fillStyle = '#3dff8a'; ctx.font = '11px ui-monospace,monospace'; ctx.fillText('$' + b.price.toLocaleString(), p.x, p.y - 21);
+  }
+  for (const en of G.enemies) {
+    const p = edgePos(en.e, en.t), c = en.type === 'gang' ? '#ff4d5e' : '#4da3ff';
+    ctx.save(); ctx.shadowColor = c; ctx.shadowBlur = 10;
+    tri(p.x, p.y, 13, c, Math.atan2(edges[en.e].dy*en.dir, edges[en.e].dx*en.dir)); ctx.restore();
+  }
+  const pp = edgePos(G.p.e, G.p.t);
+  if (!(G.p.inv > 0 && Math.floor(G.time*12) % 2)) {
+    ctx.save(); ctx.shadowColor = '#ffd23d'; ctx.shadowBlur = G.p.dash > 0 ? 28 : 12;
+    ctx.fillStyle = G.p.dash > 0 ? '#fff' : '#ffd23d'; ctx.beginPath(); ctx.arc(pp.x, pp.y, 10, 0, 7); ctx.fill(); ctx.restore();
+  }
+  for (const f of G.floats) {
+    ctx.globalAlpha = Math.min(1, f.life); ctx.fillStyle = f.color; ctx.font = 'bold 15px ui-monospace,monospace'; ctx.textAlign = 'center'; ctx.fillText(f.text, f.x, f.y);
+  }
+  ctx.globalAlpha = 1;
+  // day timer ring in the corner
+  ctx.fillStyle = '#8a8aa0'; ctx.font = '12px ui-monospace,monospace'; ctx.textAlign = 'left'; ctx.fillText('Next day', 14, 22);
+  ctx.fillStyle = '#242436'; ctx.fillRect(14, 28, 100, 6); ctx.fillStyle = '#ffd23d'; ctx.fillRect(14, 28, 100 * G.dayT/DAY_LEN, 6);
+  if (G.event && G.event.drug !== undefined) { ctx.fillStyle = G.event.mult > 1 ? '#ff4d5e' : '#3dff8a'; ctx.fillText(`${DRUGS[G.event.drug].name} ${G.event.mult > 1 ? 'SPIKE' : 'CRASH'}`, 14, 52); }
+  if (G.heat) { ctx.fillStyle = '#4da3ff'; ctx.fillText('HEAT WAVE', 14, 70); }
+}
+
+// ───────────────────────── Loop ─────────────────────────
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (state === 'play') update(dt);
+  if (G) updateHud();
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
