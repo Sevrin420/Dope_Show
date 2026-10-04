@@ -42,6 +42,9 @@
   .screen { position:relative; width:100%; aspect-ratio:1; background:#06060c; border-radius:0.6cqw; overflow:hidden; box-shadow:inset 0 0 2cqw rgba(0,0,0,.9); }
   canvas { position:absolute; inset:0; width:100%; height:100%; image-rendering:crisp-edges; image-rendering:pixelated; display:block; opacity:0; transition:opacity .25s; }
   .on canvas { opacity:1; }
+  .screen::before { content:"PRESS A OR SLIDE POWER"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#4b4870;
+                    font:bold 3.6cqw/1 ui-monospace,Menlo,Consolas,monospace; letter-spacing:.4cqw; animation:blink 1.2s steps(2) infinite; pointer-events:none; }
+  .on .screen::before { display:none; }
   .screen::after { content:""; position:absolute; inset:0; pointer-events:none; background:linear-gradient(130deg, rgba(255,255,255,.07) 0%, rgba(255,255,255,0) 35%); }
   /* logo */
   .logo { margin:2.6cqw 0 0 1cqw; font-family:"Arial Black","Trebuchet MS",sans-serif; font-weight:900; font-style:italic; font-size:6.4cqw; letter-spacing:-0.1cqw;
@@ -582,7 +585,8 @@ function btnDown(b) {
 }
 function btnUp(b) { if (b in held) held[b] = 0; }
 function press(b) {
-  if (state === 'off' || state === 'boot') return;
+  if (state === 'off') { if (b === 'a' || b === 'b') setPower(true); return; }
+  if (state === 'boot') return;
   if (state === 'title' || state === 'over') { if (b === 'a') start(); return; }
   if (state === 'play') { if (b === 'a') tryEnter(); else if (b === 'b') dash(); }
   else if (state === 'market') marketBtn(b);
@@ -617,7 +621,8 @@ document.addEventListener('contextmenu', ev => ev.preventDefault());
 // tapping the screen still works: on-screen buttons, or hold to steer toward a point
 function toBuf(ev) { const r = cv.getBoundingClientRect(); return { x:(ev.clientX - r.left) / r.width * SZ, y:(ev.clientY - r.top) / r.height * SZ }; }
 cv.addEventListener('pointerdown', ev => {
-  ev.preventDefault(); const b = toBuf(ev);
+  ev.preventDefault(); if (state === 'off') { setPower(true); return; }
+  const b = toBuf(ev);
   for (let i = ui.hits.length - 1; i >= 0; i--) { const h = ui.hits[i]; if (b.x >= h.x && b.x < h.x + h.w && b.y >= h.y && b.y < h.y + h.h) { h.fn(); return; } }
   if (state === 'play') { pointer = { x:b.x / S, y:(b.y - OY) / S }; cv.setPointerCapture(ev.pointerId); }
 });
@@ -913,7 +918,8 @@ function setPower(on) {
   if (on) { newGame(); state = 'boot'; bootT = 0; chime.done = false; try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch (e) {} }
   else state = 'off';
 }
-document.getElementById('power').addEventListener('click', () => setPower(state === 'off'));
+// pointerdown, not click: sandboxed/embedded views on phones may never synthesize a click from a tap
+document.getElementById('power').addEventListener('pointerdown', ev => { ev.preventDefault(); setPower(state === 'off'); });
 function drawBoot(dt) {
   bootT += dt;
   ctx.fillStyle = K.winFill; ctx.fillRect(0, 0, SZ, SZ);
