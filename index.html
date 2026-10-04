@@ -5,458 +5,793 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <title>Dope Show</title>
 <style>
-  :root { --bg:#0b0b12; --panel:#15151f; --line:#2a2a3a; --fg:#e8e8f0; --dim:#8a8aa0; --green:#3dff8a; --red:#ff4d5e; --gold:#ffd23d; --blue:#4da3ff; }
-  * { box-sizing:border-box; }
-  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg); font-family:ui-monospace,Menlo,Consolas,monospace; overflow:hidden; }
-  #app { display:flex; flex-direction:column; height:100%; align-items:center; }
-  #hud { display:flex; flex-wrap:wrap; gap:6px 18px; justify-content:center; padding:8px 12px; font-size:14px; width:100%; background:var(--panel); border-bottom:1px solid var(--line); }
-  #hud b { color:var(--gold); }
-  #hud .bad { color:var(--red); } #hud .good { color:var(--green); }
-  #stage { position:relative; flex:1; width:100%; display:flex; justify-content:center; align-items:center; min-height:0; }
-  canvas { background:radial-gradient(circle at center,#14141f 0%,#0b0b12 75%); max-width:100%; max-height:100%; aspect-ratio:1; touch-action:none; }
-  #toast { position:absolute; top:8px; left:50%; transform:translateX(-50%); background:#000c; border:1px solid var(--line); padding:6px 14px; border-radius:6px; font-size:14px; opacity:0; transition:opacity .3s; pointer-events:none; text-align:center; max-width:90%; }
-  #toast.show { opacity:1; }
-  button { font:inherit; background:#22222f; color:var(--fg); border:1px solid #3a3a52; border-radius:5px; padding:5px 10px; cursor:pointer; }
-  button:hover { background:#2d2d40; } button:disabled { opacity:.35; cursor:default; }
-  button.primary { background:var(--green); color:#04140a; border-color:var(--green); font-weight:bold; }
-  #enter { position:absolute; bottom:14px; left:50%; transform:translateX(-50%); display:none; font-size:16px; padding:10px 22px; }
-  .overlay { position:absolute; inset:0; background:#000c; display:none; align-items:center; justify-content:center; padding:10px; }
-  .overlay.show { display:flex; }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px 22px; max-width:560px; width:100%; max-height:100%; overflow:auto; }
-  .card h1,.card h2 { margin:0 0 8px; color:var(--green); }
-  .card p,.card li { color:var(--dim); line-height:1.45; font-size:14px; }
-  .card li b,.card p b { color:var(--fg); }
-  table { width:100%; border-collapse:collapse; margin:10px 0; font-size:14px; }
-  th,td { text-align:left; padding:5px 4px; border-bottom:1px solid var(--line); }
-  td.num { text-align:right; }
-  .row { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; align-items:center; }
-  .spacer { flex:1; }
+  html,body { margin:0; height:100%; background:#050508; overflow:hidden; }
+  body { display:flex; align-items:center; justify-content:center; }
+  canvas { image-rendering:crisp-edges; image-rendering:pixelated; touch-action:none; display:block; }
 </style>
 </head>
 <body>
-<div id="app">
-  <div id="hud"></div>
-  <div id="stage">
-    <canvas id="c" width="800" height="800"></canvas>
-    <div id="toast"></div>
-    <button id="enter" class="primary">Enter tower [E]</button>
-
-    <div id="title" class="overlay show"><div class="card">
-      <h1>DOPE SHOW</h1>
-      <p>You owe the Loan Shark. You have 30 days. Run the wheel, buy low, sell high &mdash; and don't get caught.</p>
-      <ul>
-        <li><b>Move:</b> WASD / arrows (or hold the mouse / finger toward where you want to go). You can only run on the roads.</li>
-        <li><b>Towers:</b> stop on a tower and press <b>E</b> to trade. The <b>center tower</b> also has the Loan Shark and a medic.</li>
-        <li><b>Buyers</b> <span style="color:var(--green)">($)</span> wander the roads and pay a premium for the drug they want &mdash; run into them.</li>
-        <li><b>Cops</b> <span style="color:var(--blue)">&#9650;</span> patrol and confiscate stock. <b>Gangs</b> <span style="color:var(--red)">&#9650;</span> chase you and rob you.</li>
-        <li><b>Dash:</b> <b>Space</b> gives a short burst of speed and makes you untouchable. It recharges.</li>
-        <li>Debt grows 8% a day. Final score = cash &minus; debt.</li>
-      </ul>
-      <div class="row"><span id="best" style="color:var(--dim)"></span><span class="spacer"></span><button class="primary" id="start">Start</button></div>
-    </div></div>
-
-    <div id="market" class="overlay"><div class="card" id="marketCard"></div></div>
-    <div id="over" class="overlay"><div class="card" id="overCard"></div></div>
-  </div>
-</div>
-
+<canvas id="c" width="256" height="256"></canvas>
 <script>
 'use strict';
-// ───────────────────────── Config ─────────────────────────
-const W = 800, CX = 400, CY = 400, RING = 290;
-const TOTAL_DAYS = 30, DAY_LEN = 24;          // seconds per in-game day
+/* ════════════════════════════════════════════════════════════════════
+   DOPE SHOW — a dystopian wheel-map hustle, drawn in a 16-bit
+   top-down (A Link to the Past) style.
+
+   Art rules, enforced in code:
+   • 256x256 internal buffer, nearest-neighbour upscaled, integer scale.
+   • 15-bit colour: every colour is built from 5 bits per channel (C()).
+   • Light from the top-left: highlight on top/left edges, shade on
+     bottom/right edges (Painter.render).
+   • 3-tone ramps per material, hue-shifted (cool shadows, warm lights).
+   • Auto 1px dark outline on every sprite (Painter.render).
+   • Dark oval drop shadows, Y-sorted drawing, 3 facings (side is mirrored),
+     palette-swapped enemies, bitmap font, bordered windows.
+   ════════════════════════════════════════════════════════════════════ */
+
+// ───────────────────────── Game constants ─────────────────────────
+const SZ = 256, S = SZ / 800, OY = 8;               // buffer size, world->pixel scale, y offset
+const TOTAL_DAYS = 30, DAY_LEN = 24;
 const START_CASH = 2000, START_DEBT = 5500, INTEREST = 0.08, CAPACITY = 60;
 const PLAYER_SPEED = 170, DASH_SPEED = 430, DASH_TIME = 0.28, DASH_CD = 1.6;
+const CX = 400, CY = 400, RING = 290;
+
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').imageSmoothingEnabled = false; return c; };
+const wx = x => Math.round(x * S), wy = y => Math.round(y * S) + OY;     // world -> buffer
+
+// ───────────────────────── 15-bit palette ─────────────────────────
+const C = (r, g, b) => `rgb(${r<<3|r>>2},${g<<3|g>>2},${b<<3|b>>2})`;   // 5 bits per channel, like the SNES
+const K = {
+  out:C(3,2,6), white:C(30,30,31), shadow:C(2,2,6), dim:C(14,14,19), gray:C(12,12,16),
+  conc:[C(8,8,13),C(13,13,18),C(19,19,24)],
+  roof:[C(10,10,16),C(16,16,22),C(23,23,28)],
+  wall:[C(8,6,11),C(13,10,15),C(19,15,19)],
+  rust:[C(9,4,3),C(16,8,4),C(23,13,6)],
+  wood:[C(5,3,5),C(10,7,8),C(16,12,12)],
+  skin:[C(14,8,7),C(21,13,11),C(27,19,16)],
+  yellow:[C(14,9,3),C(22,16,4),C(30,24,9)],
+  red:[C(12,2,5),C(21,5,8),C(29,11,13)],
+  scarf:[C(14,2,5),C(24,5,8),C(30,11,13)],
+  teal:[C(3,8,13),C(6,14,20),C(12,21,26)],
+  bone:[C(17,16,16),C(24,23,22),C(30,30,28)],
+  green:[C(3,9,7),C(6,16,10),C(12,23,15)],
+  dark:[C(3,3,7),C(5,5,10),C(9,9,14)],
+  pants:[C(4,4,9),C(7,7,13),C(11,11,17)],
+  boots:[C(3,2,5),C(6,4,8),C(10,8,11)],
+  bag:[C(6,5,3),C(11,9,5),C(17,14,8)],
+  visor:C(2,2,6), glint:C(31,8,8), eye:C(3,2,6),
+  gBase:C(9,8,10), gDark:C(6,5,8), gLight:C(12,11,13),
+  rMid:C(12,12,16), rDark:C(9,9,13), rLight:C(17,17,22), dash:C(20,17,6), curbL:C(22,22,26), curbD:C(5,5,9),
+  vBase:C(4,3,6), vSpeck:C(6,5,9),
+  wallL:C(19,18,22), wallM:C(13,12,17), wallD:C(8,7,11), seam:C(4,4,7),
+  pA:C(14,13,17), pB:C(11,10,15), pSeam:C(7,6,10),
+  winLit:C(30,26,10), winCyan:C(10,26,30), winOff:C(2,2,7), signBg:C(2,2,6),
+  winLight:C(26,26,30), winMid:C(10,10,18), winFill:C(3,3,9), btn:C(7,7,17), btnOff:C(6,6,10),
+};
+// ───────────────────────── Data ─────────────────────────
 const DRUGS = [
-  { name:'Weed',   key:'W', min:300,   max:900,   color:'#5fdc5f' },
-  { name:'Speed',  key:'S', min:70,    max:250,   color:'#ffe94d' },
-  { name:'Ludes',  key:'L', min:10,    max:60,    color:'#c28bff' },
-  { name:'Acid',   key:'A', min:1000,  max:4500,  color:'#ff8bd5' },
-  { name:'Heroin', key:'H', min:5000,  max:14000, color:'#ff9f4d' },
-  { name:'Coke',   key:'C', min:15000, max:30000, color:'#9fe8ff' },
+  { name:'MOSS',  key:'M', min:300,   max:900,   color:C(14,28,12) },
+  { name:'VOLT',  key:'V', min:70,    max:250,   color:C(30,28,8)  },
+  { name:'HUSH',  key:'H', min:10,    max:60,    color:C(22,16,31) },
+  { name:'PRISM', key:'P', min:1000,  max:4500,  color:C(31,14,24) },
+  { name:'NULL',  key:'N', min:5000,  max:14000, color:C(31,20,8)  },
+  { name:'AURA',  key:'A', min:15000, max:30000, color:C(14,28,31) },
 ];
-const NAMES = ['The Docks','Chinatown','Southside','The Strip','Uptown'];
-const HUB_NAME = 'The Spire';
+const WARDS = [
+  ['DOCKS','THE DOCKS',C(31,8,18)], ['RUST','RUST MARKET',C(31,18,4)], ['GRID9','GRID 9',C(8,28,31)],
+  ['HIVE','THE HIVE',C(10,30,12)],  ['ASH','ASH YARD',C(22,12,31)],
+];
+const SLOGANS = ['THE DIRECTORATE SEES ALL.','COMPLIANCE IS FREEDOM.','REPORT YOUR NEIGHBORS.','YOUR DEBT IS YOUR DUTY.','CURFEW IS AT DAWN.','TRUST THE DIRECTORATE.'];
 
 // ───────────────────────── World graph ─────────────────────────
-const nodes = [{ x:CX, y:CY, name:HUB_NAME, hub:true }];
+const nodes = [{ x:CX, y:CY, name:'SPIRE', title:'THE SPIRE', hub:true, neon:C(31,6,6) }];
 for (let i = 0; i < 5; i++) {
   const a = -Math.PI/2 + i * 2*Math.PI/5;
-  nodes.push({ x:CX + Math.cos(a)*RING, y:CY + Math.sin(a)*RING, name:NAMES[i], hub:false });
+  nodes.push({ x:CX + Math.cos(a)*RING, y:CY + Math.sin(a)*RING, name:WARDS[i][0], title:WARDS[i][1], hub:false, neon:WARDS[i][2] });
 }
 const edges = [];
 function addEdge(a, b) {
   const dx = nodes[b].x - nodes[a].x, dy = nodes[b].y - nodes[a].y, len = Math.hypot(dx, dy);
   edges.push({ a, b, len, dx:dx/len, dy:dy/len });
 }
-for (let i = 1; i <= 5; i++) addEdge(0, i);                 // spokes
-for (let i = 1; i <= 5; i++) addEdge(i, i % 5 + 1);          // rim
+for (let i = 1; i <= 5; i++) addEdge(0, i);
+for (let i = 1; i <= 5; i++) addEdge(i, i % 5 + 1);
 const adj = nodes.map((_, n) => edges.map((e, i) => i).filter(i => edges[i].a === n || edges[i].b === n));
 const edgePos = (e, t) => ({ x: nodes[edges[e].a].x + edges[e].dx*edges[e].len*t, y: nodes[edges[e].a].y + edges[e].dy*edges[e].len*t });
 const outDir = (ei, n) => edges[ei].a === n ? { x:edges[ei].dx, y:edges[ei].dy } : { x:-edges[ei].dx, y:-edges[ei].dy };
 
-// ───────────────────────── State ─────────────────────────
-let G, state = 'title';
-const $ = id => document.getElementById(id);
+// ───────────────────────── Utilities ─────────────────────────
 const rnd = (a, b) => a + Math.random()*(b-a);
 const pick = a => a[Math.floor(Math.random()*a.length)];
-const fmt = n => (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString();
+const money = n => (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US');
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed>>>15, 1 | seed); t = t + Math.imul(t ^ t>>>7, 61 | t) ^ t; return ((t ^ t>>>14) >>> 0) / 4294967296; }; }
+const hash = (x, y) => { let h = (x*374761393 + y*668265263) | 0; h = Math.imul(h ^ h>>>13, 1274126177); return ((h ^ h>>>16) >>> 0) / 4294967296; };
+
+// ───────────────────────── Painter: the SNES sprite rules ─────────────────────────
+// Cells hold material ids. render() applies top-left lighting and the 1px outline.
+class Painter {
+  constructor(w, h) { this.w = w; this.h = h; this.g = new Uint8Array(w*h); this.m = [null]; }
+  mat(c) { this.m.push({ c, shaded:Array.isArray(c) }); return this.m.length - 1; }
+  at(x, y) { return x < 0 || y < 0 || x >= this.w || y >= this.h ? 0 : this.g[y*this.w + x]; }
+  px(x, y, m) { if (x >= 0 && y >= 0 && x < this.w && y < this.h) this.g[y*this.w + x] = m; }
+  rect(x, y, w, h, m) { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) this.px(x+i, y+j, m); }
+  ell(cx, cy, rx, ry, m) { for (let j = -ry; j <= ry; j++) for (let i = -rx; i <= rx; i++) if (i*i/(rx*rx+.5) + j*j/(ry*ry+.5) <= 1) this.px(cx+i, cy+j, m); }
+  line(x0, y0, x1, y1, m) {
+    const dx = Math.abs(x1-x0), dy = -Math.abs(y1-y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1; let e = dx + dy;
+    for (;;) { this.px(x0, y0, m); if (x0 === x1 && y0 === y1) break; const e2 = 2*e; if (e2 >= dy) { e += dy; x0 += sx; } if (e2 <= dx) { e += dx; y0 += sy; } }
+  }
+  render(outline = K.out) {
+    const c = mk(this.w + 2, this.h + 2), x = c.getContext('2d');
+    for (let j = -1; j <= this.h; j++) for (let i = -1; i <= this.w; i++) {
+      const m = this.at(i, j);
+      if (m) {
+        const d = this.m[m]; let col = d.c;
+        if (d.shaded) {
+          const dark = !this.at(i, j+1) || !this.at(i+1, j), light = !this.at(i, j-1) || !this.at(i-1, j);
+          col = dark ? d.c[0] : light ? d.c[2] : d.c[1];
+        }
+        x.fillStyle = col; x.fillRect(i+1, j+1, 1, 1);
+      } else if (outline && (this.at(i-1, j) || this.at(i+1, j) || this.at(i, j-1) || this.at(i, j+1))) {
+        x.fillStyle = outline; x.fillRect(i+1, j+1, 1, 1);
+      }
+    }
+    return c;
+  }
+}
+
+// ───────────────────────── Bitmap font (5x7) ─────────────────────────
+const FONT_SRC = {
+  A:'.###. #...# #...# ##### #...# #...# #...#', B:'####. #...# #...# ####. #...# #...# ####.',
+  C:'.#### #.... #.... #.... #.... #.... .####', D:'####. #...# #...# #...# #...# #...# ####.',
+  E:'##### #.... #.... ####. #.... #.... #####', F:'##### #.... #.... ####. #.... #.... #....',
+  G:'.#### #.... #.... #..## #...# #...# .###.', H:'#...# #...# #...# ##### #...# #...# #...#',
+  I:'##### ..#.. ..#.. ..#.. ..#.. ..#.. #####', J:'..### ...#. ...#. ...#. ...#. #..#. .##..',
+  K:'#...# #..#. #.#.. ##... #.#.. #..#. #...#', L:'#.... #.... #.... #.... #.... #.... #####',
+  M:'#...# ##.## #.#.# #.#.# #...# #...# #...#', N:'#...# ##..# #.#.# #..## #...# #...# #...#',
+  O:'.###. #...# #...# #...# #...# #...# .###.', P:'####. #...# #...# ####. #.... #.... #....',
+  Q:'.###. #...# #...# #...# #.#.# #..#. .##.#', R:'####. #...# #...# ####. #.#.. #..#. #...#',
+  S:'.#### #.... #.... .###. ....# ....# ####.', T:'##### ..#.. ..#.. ..#.. ..#.. ..#.. ..#..',
+  U:'#...# #...# #...# #...# #...# #...# .###.', V:'#...# #...# #...# #...# #...# .#.#. ..#..',
+  W:'#...# #...# #...# #.#.# #.#.# ##.## #...#', X:'#...# #...# .#.#. ..#.. .#.#. #...# #...#',
+  Y:'#...# #...# .#.#. ..#.. ..#.. ..#.. ..#..', Z:'##### ....# ...#. ..#.. .#... #.... #####',
+  0:'.###. #...# #..## #.#.# ##..# #...# .###.', 1:'..#.. .##.. ..#.. ..#.. ..#.. ..#.. .###.',
+  2:'.###. #...# ....# ...#. ..#.. .#... #####', 3:'.###. #...# ....# ..##. ....# #...# .###.',
+  4:'...#. ..##. .#.#. #..#. ##### ...#. ...#.', 5:'##### #.... ####. ....# ....# #...# .###.',
+  6:'.###. #.... #.... ####. #...# #...# .###.', 7:'##### ....# ...#. ..#.. .#... .#... .#...',
+  8:'.###. #...# #...# .###. #...# #...# .###.', 9:'.###. #...# #...# .#### ....# ....# .###.',
+  '$':'..#.. .#### #.#.. .###. ..#.# ####. ..#..', '.':'..... ..... ..... ..... ..... .##.. .##..',
+  ',':'..... ..... ..... ..... .##.. ..#.. .#...', '!':'..#.. ..#.. ..#.. ..#.. ..#.. ..... ..#..',
+  '?':'.###. #...# ....# ...#. ..#.. ..... ..#..', '-':'..... ..... ..... ##### ..... ..... .....',
+  '+':'..... ..#.. ..#.. ##### ..#.. ..#.. .....', ':':'..... .##.. .##.. ..... .##.. .##.. .....',
+  '/':'....# ....# ...#. ..#.. .#... #.... #....', '%':'##..# ##..# ...#. ..#.. .#... #..## #..##',
+  "'":'..#.. ..#.. .#... ..... ..... ..... .....', '[':'.###. .#... .#... .#... .#... .#... .###.',
+  ']':'.###. ...#. ...#. ...#. ...#. ...#. .###.', '>':'.#... ..#.. ...#. ....# ...#. ..#.. .#...',
+  '(':'...#. ..#.. .#... .#... .#... ..#.. ...#.', ')':'.#... ..#.. ...#. ...#. ...#. ..#.. .#...',
+};
+const FONT = {}; for (const k in FONT_SRC) FONT[k] = FONT_SRC[k].split(' ');
+const glyphCache = {};
+function glyph(ch, col) {
+  const key = ch + col; let g = glyphCache[key];
+  if (!g) {
+    g = mk(5, 7); const rows = FONT[ch];
+    if (rows) { const x = g.getContext('2d'); x.fillStyle = col; rows.forEach((r, y) => { for (let i = 0; i < 5; i++) if (r[i] === '#') x.fillRect(i, y, 1, 1); }); }
+    glyphCache[key] = g;
+  }
+  return g;
+}
+function text(s, x, y, col = K.white, o = {}) {
+  s = String(s).toUpperCase();
+  const sc = o.scale || 1, sh = o.shadow === false ? null : (o.shadow || K.shadow), w = s.length*6*sc - sc;
+  if (o.align === 'c') x -= Math.floor(w/2); else if (o.align === 'r') x -= w;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i]; if (ch === ' ') continue;
+    if (sh) ctx.drawImage(glyph(ch, sh), x + i*6*sc + sc, y + sc, 5*sc, 7*sc);
+    ctx.drawImage(glyph(ch, col), x + i*6*sc, y, 5*sc, 7*sc);
+  }
+  return w;
+}
+
+// ───────────────────────── Windows, buttons ─────────────────────────
+const ui = { hits:[] };
+function rr(x, y, w, h, col) { ctx.fillStyle = col; ctx.fillRect(x+1, y, w-2, h); ctx.fillRect(x, y+1, w, h-2); }
+function win(x, y, w, h) { rr(x, y, w, h, K.out); rr(x+1, y+1, w-2, h-2, K.winLight); rr(x+2, y+2, w-4, h-4, K.winMid); rr(x+3, y+3, w-6, h-6, K.winFill); }
+function button(x, y, label, fn, en = true, col) {
+  const w = label.length*6 + 7, h = 11;
+  rr(x, y, w, h, K.out); rr(x+1, y+1, w-2, h-2, en ? K.winLight : K.gray); rr(x+2, y+2, w-4, h-4, en ? K.btn : K.btnOff);
+  text(label, x+4, y+2, en ? (col || K.white) : K.dim);
+  if (en) ui.hits.push({ x, y, w, h, fn });
+  return w;
+}
+
+// ───────────────────────── Character sprites ─────────────────────────
+function buildChar(dir, f, o) {
+  const p = new Painter(14, 18);
+  const H = p.mat(o.hood), Cc = p.mat(o.coat), T = p.mat(o.trim), Sk = p.mat(K.skin), Pn = p.mat(K.pants), Bt = p.mat(K.boots),
+        Pk = p.mat(o.pack || K.bag), V = p.mat(K.visor), Gl = p.mat(K.glint), Fc = o.mask ? p.mat(o.mask) : Sk;
+  const front = dir === 'down', back = dir === 'up', side = dir === 'side';
+  // legs
+  if (!side) {
+    const l = f === 2 ? 3 : 4, r = f === 1 ? 3 : 4;
+    p.rect(4, 13, 2, l, Pn); p.rect(8, 13, 2, r, Pn); p.rect(6, 13, 2, 1, Pn);
+    p.rect(4, 12 + l, 2, 1, Bt); p.rect(8, 12 + r, 2, 1, Bt);
+  } else {
+    p.rect(5, 13, 4, 1, Pn);
+    if (f === 0) { p.rect(5, 13, 4, 4, Pn); p.rect(5, 16, 5, 1, Bt); }
+    else if (f === 1) { p.rect(4, 13, 2, 4, Pn); p.rect(8, 13, 3, 3, Pn); p.rect(4, 16, 2, 1, Bt); p.rect(8, 15, 4, 1, Bt); }
+    else { p.rect(5, 13, 2, 3, Pn); p.rect(7, 13, 3, 4, Pn); p.rect(5, 15, 2, 1, Bt); p.rect(7, 16, 4, 1, Bt); }
+  }
+  // torso, arms
+  if (!side) {
+    p.rect(3, 7, 8, 6, Cc); p.rect(1, 8, 2, 4, Cc); p.rect(11, 8, 2, 4, Cc);
+    if (o.helm) { p.rect(1, 7, 3, 3, H); p.rect(10, 7, 3, 3, H); }
+    p.rect(1, 12, 2, 1, Sk); p.rect(11, 12, 2, 1, Sk);
+    p.rect(3, 11, 8, 1, T);
+    if (back && o.pack !== null && !o.helm) { p.rect(4, 8, 6, 5, Pk); p.rect(4, 8, 1, 5, T); p.rect(9, 8, 1, 5, T); }
+  } else {
+    p.rect(4, 7, 6, 6, Cc); p.rect(4, 11, 6, 1, T);
+    if (!o.helm) p.rect(2, 8, 3, 5, Pk);
+    const ax = 5 + (f === 1 ? 1 : f === 2 ? -1 : 0);
+    p.rect(ax, 8, 3, 4, o.helm ? H : Cc); p.px(ax + 1, 12, Sk);
+  }
+  // head
+  if (o.helm) {
+    if (side) { p.rect(3, 0, 8, 7, H); p.rect(7, 3, 4, 2, V); p.px(9, 4, Gl); }
+    else { p.rect(2, 0, 10, 7, H); if (front) { p.rect(4, 3, 6, 2, V); p.px(5, 4, Gl); p.px(8, 4, Gl); } }
+  } else if (front) {
+    p.rect(4, 0, 6, 1, H); p.rect(3, 1, 8, 2, H); p.rect(3, 3, 1, 4, H); p.rect(10, 3, 1, 4, H);
+    p.rect(4, 3, 6, 4, Fc);
+    if (o.mask) { p.px(5, 4, V); p.px(5, 5, V); p.px(8, 4, V); p.px(8, 5, V); p.rect(6, 6, 2, 1, V); }
+    else { p.px(5, 5, V); p.px(8, 5, V); }
+    p.rect(3, 7, 8, 1, T);
+  } else if (back) {
+    p.rect(4, 0, 6, 1, H); p.rect(3, 1, 8, 6, H); p.rect(3, 7, 8, 1, T);
+  } else {
+    p.rect(3, 0, 8, 3, H); p.rect(3, 3, 3, 4, H); p.rect(6, 3, 5, 4, Fc);
+    if (o.mask) { p.px(9, 4, V); p.px(9, 5, V); } else p.px(9, 5, V);
+    p.rect(4, 7, 6, 1, T);
+  }
+  return p.render();
+}
+const PALS = {
+  player: { hood:K.yellow, coat:K.yellow, trim:K.scarf, bag:K.bag },
+  cop:    { hood:K.teal,   coat:K.teal,   trim:K.conc, helm:true },
+  gang:   { hood:K.red,    coat:K.red,    trim:K.dark, mask:K.bone, pack:K.dark },
+  buyer:  { hood:K.green,  coat:K.green,  trim:K.conc },
+};
+const SPR = {};
+for (const who in PALS) { SPR[who] = {}; for (const d of ['down', 'up', 'side']) SPR[who][d] = [0, 1, 2].map(f => buildChar(d, f, PALS[who])); }
+
+// ───────────────────────── Buildings ─────────────────────────
+function buildTower(i, seed) {
+  const R = rng(seed), p = new Painter(32, 36);
+  const RF = p.mat(K.roof), WL = p.mat(K.wall), TR = p.mat(K.conc), SG = p.mat(K.signBg), DR = p.mat(K.winOff), FD = p.mat(K.dark), RS = p.mat(K.rust);
+  const LIT = p.mat(K.winLit), CY = p.mat(K.winCyan), GL = p.mat(C(10,4,6));
+  p.rect(21, 0, 7, 5, TR); p.rect(6, 1, 2, 5, RS);                       // vent box, antenna mast
+  p.rect(0, 4, 32, 6, RF); p.rect(3, 6, 26, 2, FD);                       // roof slab with recess
+  p.rect(0, 10, 32, 26, WL); p.rect(0, 33, 32, 3, FD);                    // facade, foundation
+  p.rect(1, 11, 30, 9, SG);                                              // neon sign band (text drawn live)
+  for (const x of [4, 14, 24]) p.rect(x, 22, 4, 4, R() < .6 ? (R() < .7 ? LIT : CY) : DR);
+  for (const x of [4, 24]) p.rect(x, 28, 4, 3, R() < .5 ? LIT : DR);
+  p.rect(12, 28, 8, 8, DR); p.rect(14, 30, 4, 6, GL);                     // door
+  p.rect(29, 10, 2, 23, RS);                                             // drain pipe
+  return p.render();
+}
+function buildHub() {
+  const R = rng(99), p = new Painter(46, 46);
+  const RF = p.mat(K.roof), WL = p.mat(K.wall), SG = p.mat(K.signBg), DR = p.mat(K.winOff), FD = p.mat(K.dark);
+  const LIT = p.mat(K.winLit), CY = p.mat(K.winCyan), EY = p.mat(K.visor), SC = p.mat(C(28,27,24)), GL = p.mat(C(12,2,4)), RS = p.mat(K.rust);
+  p.rect(22, 0, 1, 0, RF);
+  p.rect(14, 0, 18, 3, RF); p.rect(14, 3, 18, 9, WL); p.ell(23, 7, 7, 3, EY); p.ell(23, 7, 5, 2, SC);       // tier 3 + eye socket
+  p.rect(8, 12, 30, 3, RF); p.rect(8, 15, 30, 10, WL);                                                       // tier 2
+  for (const x of [11, 18, 25, 32]) p.rect(x, 18, 4, 4, R() < .6 ? (R() < .7 ? LIT : CY) : DR);
+  p.rect(0, 25, 46, 3, RF); p.rect(0, 28, 46, 18, WL); p.rect(0, 43, 46, 3, FD);                           // tier 1
+  p.rect(8, 29, 30, 9, SG);
+  for (const x of [3, 9, 33, 39]) p.rect(x, 40, 4, 3, R() < .5 ? LIT : DR);
+  p.rect(18, 38, 10, 8, DR); p.rect(20, 40, 6, 6, GL);                                                      // gate
+  p.rect(2, 3, 2, 22, RS); p.rect(42, 3, 2, 22, RS);                                                        // exhaust stacks
+  return p.render();
+}
+const TOWER_SPR = nodes.map((n, i) => n.hub ? buildHub() : buildTower(i, 7 + i*31));
+
+// ───────────────────────── Props ─────────────────────────
+function propDeadTree() {
+  const p = new Painter(16, 24), W = p.mat(K.wood);
+  p.rect(6, 11, 4, 12, W); p.px(5, 22, W); p.px(10, 22, W); p.px(4, 23, W); p.px(11, 23, W);
+  for (const [a, b, c, d] of [[7,11,3,5],[3,5,2,1],[8,10,12,4],[12,4,14,1],[7,8,5,4],[9,7,11,8]]) { p.line(a, b, c, d, W); p.line(a+1, b, c+1, d, W); }
+  return p.render();
+}
+function propRubble() {
+  const p = new Painter(18, 9), A = p.mat(K.conc), B = p.mat(K.roof), R = p.mat(K.rust);
+  p.rect(0, 4, 7, 5, A); p.rect(6, 2, 8, 7, B); p.rect(12, 5, 6, 4, A); p.rect(3, 1, 2, 3, R); p.px(15, 3, R); p.px(15, 4, R);
+  return p.render();
+}
+function propBarrels() {
+  const p = new Painter(15, 12), R = p.mat(K.rust), T = p.mat(K.dark);
+  p.rect(1, 3, 6, 9, R); p.rect(1, 6, 6, 1, T); p.rect(1, 9, 6, 1, T);
+  p.rect(8, 5, 6, 7, R); p.rect(8, 8, 6, 1, T);
+  return p.render();
+}
+function propSpeaker() {
+  const p = new Painter(12, 26), A = p.mat(K.conc), B = p.mat(K.dark), L = p.mat(K.glint);
+  p.rect(5, 8, 2, 18, A); p.rect(3, 24, 6, 2, B); p.rect(1, 2, 9, 5, B); p.rect(0, 3, 2, 3, A); p.px(6, 0, L); p.px(6, 1, L);
+  return p.render();
+}
+function propBoard(word) {
+  const p = new Painter(36, 28), A = p.mat(K.conc), B = p.mat(K.signBg), T = p.mat(C(31,6,8)), D = p.mat(K.dark);
+  p.rect(6, 15, 2, 13, D); p.rect(28, 15, 2, 13, D);
+  p.rect(0, 0, 36, 16, A); p.rect(2, 2, 32, 12, B);
+  const w = word.length*6 - 1, ox = 2 + Math.floor((32 - w)/2);
+  for (let i = 0; i < word.length; i++) FONT[word[i]].forEach((row, y) => { for (let x = 0; x < 5; x++) if (row[x] === '#') p.px(ox + i*6 + x, 4 + y, T); });
+  return p.render();
+}
+const PROPS = [
+  { img:propDeadTree(), w:5 }, { img:propDeadTree(), w:5 }, { img:propRubble(), w:8 }, { img:propBarrels(), w:7 }, { img:propSpeaker(), w:4 },
+  { img:propBoard('OBEY'), w:15 }, { img:propBoard('WATCH'), w:15 }, { img:propBoard('HUSH'), w:15 }, { img:propBoard('TRUST'), w:15 },
+];
+
+// ───────────────────────── Static background bake ─────────────────────────
+const MID = SZ/2, MIDY = wy(CY);                       // map centre in buffer px
+const BN = nodes.map(n => ({ x:wx(n.x), y:wy(n.y) }));
+const WALL_IN = 112, WALL_OUT = 117, ROAD_HW = 7;
+let BG, VIGNETTE, DITHER;
+function segInfo(px, py, ax, ay, bx, by) {
+  const dx = bx-ax, dy = by-ay, l2 = dx*dx + dy*dy; let t = ((px-ax)*dx + (py-ay)*dy) / l2; t = Math.max(0, Math.min(1, t));
+  const cx = ax + dx*t, cy = ay + dy*t;
+  return { dist:Math.hypot(px-cx, py-cy), t, len:Math.sqrt(l2), nx:px-cx, ny:py-cy };
+}
+function bakeBG() {
+  const c = mk(SZ, SZ), x = c.getContext('2d'), R = rng(1337);
+  const set = (px, py, col) => { x.fillStyle = col; x.fillRect(px, py, 1, 1); };
+  // ground tiles: 4 hand-built 16x16 variants
+  const tiles = [0, 1, 2, 3].map(v => {
+    const t = mk(16, 16), tx = t.getContext('2d'); tx.fillStyle = K.gBase; tx.fillRect(0, 0, 16, 16);
+    const dot = (a, b, col) => { tx.fillStyle = col; tx.fillRect(a, b, 1, 1); };
+    if (v === 0) { for (let i = 0; i < 3; i++) dot(R()*16|0, R()*16|0, K.gDark); for (let i = 0; i < 2; i++) dot(R()*16|0, R()*16|0, K.gLight); }
+    if (v === 1) { const a = 3 + (R()*8|0), b = 3 + (R()*8|0); tx.fillStyle = K.gDark; tx.fillRect(a+1, b+1, 3, 2); tx.fillStyle = K.gLight; tx.fillRect(a, b, 3, 2); }
+    if (v === 2) { let a = 2 + (R()*4|0), b = 3 + (R()*3|0); for (let i = 0; i < 9; i++) { dot(a, b, K.gDark); a += 1; if (R() < .5) b += R() < .5 ? 1 : -1; } }
+    if (v === 3) dot(R()*16|0, R()*16|0, K.gDark);
+    return t;
+  });
+  for (let ty = 0; ty < 16; ty++) for (let tx = 0; tx < 16; tx++) {
+    const h = hash(tx, ty); x.drawImage(tiles[h < .45 ? 3 : h < .75 ? 0 : h < .9 ? 1 : 2], tx*16, ty*16);
+  }
+  // outer dead zone + city wall
+  for (let py = 0; py < SZ; py++) for (let px = 0; px < SZ; px++) {
+    const dx = px - MID + .5, dy = py - MIDY + .5, d = Math.hypot(dx, dy);
+    if (d > WALL_OUT) set(px, py, hash(px, py) < .06 ? K.vSpeck : K.vBase);
+    else if (d >= WALL_IN) {
+      const ang = Math.atan2(dy, dx), lit = -(dx + dy) / (d * Math.SQRT2), band = (d - WALL_IN) / (WALL_OUT - WALL_IN);
+      let col = lit > .45 ? K.wallL : lit < -.45 ? K.wallD : K.wallM;
+      if (band < .2) col = K.wallL; else if (band > .85) col = K.wallD;
+      const seg = ang * WALL_IN / 9, fr = seg - Math.floor(seg); if (fr < .08) col = K.seam;
+      if (Math.floor(ang * WALL_IN) % 4 === 0 && d < WALL_IN + 1.2) col = K.seam;     // barbed-wire dots
+      set(px, py, col);
+    }
+  }
+  // roads
+  for (let py = 0; py < SZ; py++) for (let px = 0; px < SZ; px++) {
+    if (Math.hypot(px - MID, py - MIDY) > WALL_IN - 1) continue;
+    let best = null;
+    for (const e of edges) { const s = segInfo(px + .5, py + .5, BN[e.a].x, BN[e.a].y, BN[e.b].x, BN[e.b].y); if (s.dist < ROAD_HW && (!best || s.dist < best.dist)) best = s; }
+    if (!best) continue;
+    let col = K.rMid; const along = best.t * best.len, h = hash(px, py);
+    if (best.dist >= ROAD_HW - 1) { const l = -(best.nx + best.ny) / (best.dist * Math.SQRT2 || 1); col = l > 0 ? K.curbL : K.curbD; }
+    else {
+      if (h < .05) col = K.rDark; else if (h > .96) col = K.rLight;
+      if (Math.floor(along) % 24 === 0) col = K.rDark;
+      if (best.dist < .9 && along % 12 < 6) col = K.dash;
+    }
+    set(px, py, col);
+  }
+  // plazas under each tower
+  BN.forEach((n, i) => {
+    const r = nodes[i].hub ? 21 : 15;
+    for (let py = n.y - r; py <= n.y + r; py++) for (let px = n.x - r; px <= n.x + r; px++) {
+      const d = Math.hypot(px + .5 - n.x, py + .5 - n.y); if (d >= r) continue;
+      const row = py >> 2, sx = px + (row & 1)*2; let col = hash(sx >> 2, row) < .5 ? K.pA : K.pB;
+      if (sx % 4 === 0 || py % 4 === 0) col = K.pSeam;
+      if (d >= r - 1) col = (-(px + .5 - n.x) - (py + .5 - n.y)) > 0 ? K.curbL : K.curbD;
+      set(px, py, col);
+    }
+  });
+  // tower shadows (light is top-left, so they fall right/down)
+  BN.forEach((n, i) => {
+    const s = TOWER_SPR[i], w = s.width, h = s.height, top = n.y + 5 - (h - 1);
+    x.fillStyle = 'rgba(0,0,0,.38)'; x.fillRect(n.x - w/2 + 3, n.y + 5 - 2, w, 5); x.fillRect(n.x + w/2 - 1, top + 6, 5, h - 8);
+  });
+  // props, scattered off the roads
+  const placed = [], PR = rng(4242);
+  for (let tries = 0; tries < 800 && placed.length < 30; tries++) {
+    const pr = PROPS[Math.floor(PR()*PROPS.length)], px = 20 + PR()*(SZ-40), py = 30 + PR()*(SZ-45);
+    if (Math.hypot(px - MID, py - MIDY) > WALL_IN - 9) continue;
+    let ok = true;
+    for (const e of edges) if (segInfo(px, py, BN[e.a].x, BN[e.a].y, BN[e.b].x, BN[e.b].y).dist < ROAD_HW + pr.w + 9) ok = false;
+    for (let i = 0; i < BN.length; i++) { const n = BN[i], hw = nodes[i].hub ? 34 : 28; if (Math.abs(px - n.x) < hw + pr.w && py > n.y - 50 && py < n.y + 26) ok = false; }
+    for (const q of placed) if (Math.hypot(q.x - px, q.y - py) < 22) ok = false;
+    if (!ok) continue;
+    placed.push({ x:px, y:py });
+    x.fillStyle = 'rgba(0,0,0,.35)'; x.fillRect(px - pr.w + 1, py - 1, pr.w*2 + 2, 3);
+    x.drawImage(pr.img, Math.round(px - pr.img.width/2), Math.round(py - pr.img.height + 2));
+  }
+  BG = c;
+  // dithered vignette (SNES-style transparency)
+  VIGNETTE = mk(SZ, SZ); const v = VIGNETTE.getContext('2d'); v.fillStyle = 'rgb(2,2,6)';
+  for (let py = 0; py < SZ; py++) for (let px = 0; px < SZ; px++) {
+    const d = Math.hypot(px - MID, py - MIDY), chk = (px + py) & 1, q = (px & 1) === 0 && (py & 1) === 0;
+    if (d > 128 ? chk === 0 : d > 108 && q) v.fillRect(px, py, 1, 1);
+  }
+  DITHER = mk(SZ, SZ); const dd = DITHER.getContext('2d'); dd.fillStyle = 'rgb(2,2,6)';
+  for (let py = 0; py < SZ; py++) for (let px = 0; px < SZ; px++) if (((px + py) & 1) === 0) dd.fillRect(px, py, 1, 1);
+}
+bakeBG();
+
+// ───────────────────────── Icons ─────────────────────────
+function iconFrom(rows, map) {
+  const c = mk(rows[0].length, rows.length), x = c.getContext('2d');
+  rows.forEach((r, j) => [...r].forEach((ch, i) => { if (map[ch]) { x.fillStyle = map[ch]; x.fillRect(i, j, 1, 1); } }));
+  return c;
+}
+const HEART = ['.oo..oo.', 'oRRooRRo', 'oRHRRRRo', 'oRRRRRRo', '.oRRRRo.', '..oRRo..', '...oo...'];
+const heartImg = (R, H) => iconFrom(HEART, { o:K.out, R, H });
+const HEARTS = { full:heartImg(C(27,5,7), C(31,20,20)), empty:heartImg(C(8,8,11), C(11,11,14)),
+  half:(() => { const c = mk(8, 7), x = c.getContext('2d'); x.drawImage(HEARTS_E(), 0, 0); x.drawImage(HEARTS_F(), 0, 0, 4, 7, 0, 0, 4, 7); return c; })() };
+function HEARTS_E() { return heartImg(C(8,8,11), C(11,11,14)); }
+function HEARTS_F() { return heartImg(C(27,5,7), C(31,20,20)); }
+const COIN = iconFrom(['..ooo..', '.oHYYo.', 'oHYYYdo', 'oYYYYdo', 'oYYYddo', '.oddYo.', '..ooo..'], { o:K.out, H:C(31,29,14), Y:C(28,22,4), d:C(20,13,3) });
+const SKULL = iconFrom(['.ooooo.', 'oWWWWWo', 'oWkWkWo', 'oWWWWWo', '.oWWWo.', '.oWoWo.', '..ooo..'], { o:K.out, W:C(27,26,22), k:C(3,2,6) });
+const CURSOR = iconFrom(['o....', 'ooo..', 'oWWo.', 'oWWWo', 'oWWo.', 'ooo..', 'o....'], { o:K.out, W:K.white });
+
+// ───────────────────────── Game state ─────────────────────────
+let G, state = 'title', T = 0, last = performance.now();
+const dust = [], ash = Array.from({ length:42 }, (_, i) => ({ x:hash(i, 1)*SZ, y:hash(i, 2)*SZ, vy:5 + hash(i, 3)*9, vx:3 + hash(i, 4)*5, big:hash(i, 5) < .25 }));
 
 function newGame() {
   G = {
     day:1, dayT:0, cash:START_CASH, debt:START_DEBT, health:100,
-    inv: DRUGS.map(() => 0), cost: DRUGS.map(() => 0),
-    prices: [], event:null, heat:0,
-    p:{ e:0, t:0, dash:0, cd:0, inv:0 },
-    enemies:[], buyers:[], floats:[], buyerT:2, time:0,
+    inv:DRUGS.map(() => 0), cost:DRUGS.map(() => 0), prices:[], event:null, heat:0,
+    p:{ e:0, t:0, dash:0, cd:0, inv:0, face:{ dx:0, dy:1 }, anim:0, moving:false },
+    enemies:[], buyers:[], floats:[], buyerT:2, time:0, msg:{ text:'', t:99 },
   };
-  rollPrices();
-  spawnEnemies();
+  rollPrices(); spawnEnemies();
 }
 const used = () => G.inv.reduce((a, b) => a + b, 0);
-
 function rollPrices() {
-  G.prices = nodes.map(() => DRUGS.map(d => {
-    const r = Math.pow(Math.random(), 1.3);
-    return Math.max(1, Math.round(d.min + (d.max - d.min) * r));
-  }));
-  if (G.event && G.event.drug !== undefined) {
-    G.prices.forEach(row => row[G.event.drug] = Math.max(1, Math.round(row[G.event.drug] * G.event.mult)));
-  }
+  G.prices = nodes.map(() => DRUGS.map(d => Math.max(1, Math.round(d.min + (d.max - d.min) * Math.pow(Math.random(), 1.3)))));
+  if (G.event && G.event.drug !== undefined) G.prices.forEach(row => row[G.event.drug] = Math.max(1, Math.round(row[G.event.drug] * G.event.mult)));
 }
+function say(msg) { G.msg = { text:msg, t:0 }; }
+function float(txt, x, y, color) { G.floats.push({ text:txt, x, y, color, life:1.4 }); }
 
 // ───────────────────────── Enemies / buyers ─────────────────────────
 function farFromPlayer() {
   const pp = edgePos(G.p.e, G.p.t);
-  for (let k = 0; k < 40; k++) {
-    const e = Math.floor(Math.random()*edges.length), t = Math.random(), s = edgePos(e, t);
-    if (Math.hypot(s.x - pp.x, s.y - pp.y) > 170) return { e, t };
-  }
-  return { e:0, t:0.5 };
+  for (let k = 0; k < 40; k++) { const e = Math.floor(Math.random()*edges.length), t = Math.random(), s = edgePos(e, t); if (Math.hypot(s.x - pp.x, s.y - pp.y) > 170) return { e, t }; }
+  return { e:0, t:.5 };
 }
 function spawnEnemies() {
-  const cops = 2 + Math.floor(G.day/6) + G.heat, gangs = 1 + Math.floor(G.day/8);
-  G.enemies = [];
-  for (let i = 0; i < cops; i++) G.enemies.push({ type:'cop', ...farFromPlayer(), dir:Math.random()<.5?1:-1, speed:rnd(85,110) });
-  for (let i = 0; i < gangs; i++) G.enemies.push({ type:'gang', ...farFromPlayer(), dir:Math.random()<.5?1:-1, speed:rnd(105,125) });
+  const cops = 2 + Math.floor(G.day/6) + G.heat, gangs = 1 + Math.floor(G.day/8); G.enemies = [];
+  for (let i = 0; i < cops; i++) G.enemies.push({ type:'cop', ...farFromPlayer(), dir:Math.random() < .5 ? 1 : -1, speed:rnd(85, 110) });
+  for (let i = 0; i < gangs; i++) G.enemies.push({ type:'gang', ...farFromPlayer(), dir:Math.random() < .5 ? 1 : -1, speed:rnd(105, 125) });
 }
 function moveOnGraph(o, dist, chooser) {
-  const e = edges[o.e];
-  o.t += o.dir * dist / e.len;
+  const e = edges[o.e]; o.t += o.dir * dist / e.len;
   if (o.t > 0 && o.t < 1) return;
-  const node = o.t >= 1 ? e.b : e.a;
-  const opts = adj[node].filter(i => i !== o.e);
-  const next = opts.length ? chooser(node, opts) : o.e;
+  const node = o.t >= 1 ? e.b : e.a, opts = adj[node].filter(i => i !== o.e), next = opts.length ? chooser(node, opts) : o.e;
   o.e = next; o.t = edges[next].a === node ? 0 : 1; o.dir = o.t === 0 ? 1 : -1;
 }
 function spawnBuyer() {
   if (G.buyers.length >= 3) return;
-  const { e, t } = farFromPlayer(), d = Math.floor(Math.random()*DRUGS.length);
-  const avg = (DRUGS[d].min + DRUGS[d].max) / 2 * 0.7;
+  const { e, t } = farFromPlayer(), d = Math.floor(Math.random()*DRUGS.length), avg = (DRUGS[d].min + DRUGS[d].max)/2 * .7;
   G.buyers.push({ e, t, drug:d, price:Math.round(avg * rnd(1.5, 2.1)), life:rnd(18, 28) });
 }
 
 // ───────────────────────── Input ─────────────────────────
-const keys = {};
-let pointer = null;
+const keys = {}; let pointer = null;
 addEventListener('keydown', ev => {
+  if (keys[ev.code]) { if (/Arrow|Space/.test(ev.code)) ev.preventDefault(); return; }
   keys[ev.code] = true;
-  if (ev.code === 'Space') { ev.preventDefault(); if (state === 'play') dash(); }
-  if ((ev.code === 'KeyE' || ev.code === 'Enter') && state === 'play') tryEnter();
-  if (ev.code === 'Escape' && state === 'market') closeMarket();
-  if (/Arrow/.test(ev.code)) ev.preventDefault();
+  if (/Arrow|Space/.test(ev.code)) ev.preventDefault();
+  if (state === 'title' || state === 'over') { if (ev.code === 'Enter' || ev.code === 'Space') start(); return; }
+  if (state === 'play') {
+    if (ev.code === 'Space') dash();
+    if (ev.code === 'KeyE' || ev.code === 'Enter') tryEnter();
+  } else if (state === 'market') marketKey(ev);
 });
 addEventListener('keyup', ev => keys[ev.code] = false);
-const cv = $('c');
-function setPointer(ev) { const r = cv.getBoundingClientRect(); pointer = { x:(ev.clientX - r.left)/r.width*W, y:(ev.clientY - r.top)/r.height*W }; }
-cv.addEventListener('pointerdown', ev => { setPointer(ev); cv.setPointerCapture(ev.pointerId); });
-cv.addEventListener('pointermove', ev => { if (pointer) setPointer(ev); });
+function toBuf(ev) { const r = cv.getBoundingClientRect(); return { x:(ev.clientX - r.left) / r.width * SZ, y:(ev.clientY - r.top) / r.height * SZ }; }
+cv.addEventListener('pointerdown', ev => {
+  const b = toBuf(ev);
+  for (let i = ui.hits.length - 1; i >= 0; i--) { const h = ui.hits[i]; if (b.x >= h.x && b.x < h.x + h.w && b.y >= h.y && b.y < h.y + h.h) { h.fn(); return; } }
+  if (state === 'play') { pointer = { x:b.x / S, y:(b.y - OY) / S }; cv.setPointerCapture(ev.pointerId); }
+});
+cv.addEventListener('pointermove', ev => { if (pointer) { const b = toBuf(ev); pointer = { x:b.x / S, y:(b.y - OY) / S }; } });
 cv.addEventListener('pointerup', () => pointer = null);
 cv.addEventListener('pointercancel', () => pointer = null);
 function getInput() {
-  let x = (keys.ArrowRight||keys.KeyD ? 1 : 0) - (keys.ArrowLeft||keys.KeyA ? 1 : 0);
-  let y = (keys.ArrowDown||keys.KeyS ? 1 : 0) - (keys.ArrowUp||keys.KeyW ? 1 : 0);
-  if (!x && !y && pointer) {
-    const pp = edgePos(G.p.e, G.p.t), dx = pointer.x - pp.x, dy = pointer.y - pp.y, d = Math.hypot(dx, dy);
-    if (d > 18) { x = dx/d; y = dy/d; }
-  }
-  const m = Math.hypot(x, y);
-  return m ? { x:x/m, y:y/m } : { x:0, y:0 };
+  let x = (keys.ArrowRight || keys.KeyD ? 1 : 0) - (keys.ArrowLeft || keys.KeyA ? 1 : 0), y = (keys.ArrowDown || keys.KeyS ? 1 : 0) - (keys.ArrowUp || keys.KeyW ? 1 : 0);
+  if (!x && !y && pointer) { const pp = edgePos(G.p.e, G.p.t), dx = pointer.x - pp.x, dy = pointer.y - pp.y, d = Math.hypot(dx, dy); if (d > 22) { x = dx/d; y = dy/d; } }
+  const m = Math.hypot(x, y); return m ? { x:x/m, y:y/m } : { x:0, y:0 };
 }
 function dash() { if (G.p.cd <= 0) { G.p.dash = DASH_TIME; G.p.cd = DASH_CD; } }
 
 // ───────────────────────── Player ─────────────────────────
 function playerNode() { const p = G.p; return p.t <= 0 ? edges[p.e].a : p.t >= 1 ? edges[p.e].b : -1; }
 function updatePlayer(dt) {
-  const p = G.p, inp = getInput();
-  if (p.inv > 0) p.inv -= dt;
-  if (p.cd > 0) p.cd -= dt;
-  if (p.dash > 0) p.dash -= dt;
-  let n = playerNode();
-  if (n >= 0 && (inp.x || inp.y)) {            // steer onto another road at a junction
-    let best = p.e, bs = 0.35;
-    for (const ei of adj[n]) {
-      const d = outDir(ei, n), s = d.x*inp.x + d.y*inp.y;
-      if (s > bs) { bs = s; best = ei; }
-    }
+  const p = G.p, inp = getInput(); const before = edgePos(p.e, p.t);
+  if (p.inv > 0) p.inv -= dt; if (p.cd > 0) p.cd -= dt; if (p.dash > 0) p.dash -= dt;
+  const n = playerNode();
+  if (n >= 0 && (inp.x || inp.y)) {
+    let best = p.e, bs = .35;
+    for (const ei of adj[n]) { const d = outDir(ei, n), s = d.x*inp.x + d.y*inp.y; if (s > bs) { bs = s; best = ei; } }
     if (best !== p.e) { p.e = best; p.t = edges[best].a === n ? 0 : 1; }
   }
-  const e = edges[p.e], s = e.dx*inp.x + e.dy*inp.y;
-  const speed = p.dash > 0 ? DASH_SPEED : PLAYER_SPEED;
-  const dir = p.dash > 0 && Math.abs(s) < 0.05 ? 0 : s;
+  const e = edges[p.e], s = e.dx*inp.x + e.dy*inp.y, speed = p.dash > 0 ? DASH_SPEED : PLAYER_SPEED;
+  const dir = p.dash > 0 && Math.abs(s) < .05 ? 0 : s;
   p.t = Math.min(1, Math.max(0, p.t + dir * speed * dt / e.len));
+  const after = edgePos(p.e, p.t), mx = after.x - before.x, my = after.y - before.y;
+  p.moving = Math.hypot(mx, my) > .01;
+  if (p.moving) { p.face = { dx:mx, dy:my }; p.anim += dt * (p.dash > 0 ? 2 : 1); }
+  if (p.dash > 0 && p.moving && Math.random() < .7) dust.push({ x:wx(after.x) + (Math.random()*4 - 2 | 0), y:wy(after.y) - 1, life:.35 });
 }
 
 // ───────────────────────── Hits & rewards ─────────────────────────
-function say(msg) {
-  const t = $('toast'); t.textContent = msg; t.classList.add('show');
-  clearTimeout(say.h); say.h = setTimeout(() => t.classList.remove('show'), 3200);
-}
-function float(text, x, y, color) { G.floats.push({ text, x, y, color, life:1.4 }); }
-
 function hit(en) {
-  const p = G.p, pos = edgePos(p.e, p.t);
-  p.inv = 1.8;
-  G.health -= en.type === 'gang' ? 22 : 12;
+  const p = G.p, pos = edgePos(p.e, p.t); p.inv = 1.8; G.health -= en.type === 'gang' ? 22 : 12;
   if (en.type === 'cop') {
     const stacks = G.inv.map((q, i) => i).filter(i => G.inv[i] > 0);
     if (stacks.length) {
-      const i = pick(stacks), lost = Math.max(1, Math.ceil(G.inv[i] * 0.4));
-      G.inv[i] -= lost; if (!G.inv[i]) G.cost[i] = 0;
-      say(`Cops confiscated ${lost} ${DRUGS[i].name}!`); float(`-${lost} ${DRUGS[i].name}`, pos.x, pos.y - 20, '#4da3ff');
-    } else {
-      const fine = Math.min(G.cash, 300); G.cash -= fine;
-      say(`Cops found nothing... but fined you ${fmt(fine)}`); float('-' + fmt(fine), pos.x, pos.y - 20, '#4da3ff');
-    }
-  } else {
-    const lost = Math.round(G.cash * 0.2); G.cash -= lost;
-    say(`The gang robbed you of ${fmt(lost)}!`); float('-' + fmt(lost), pos.x, pos.y - 20, '#ff4d5e');
-  }
-  if (G.health <= 0) endGame('You were taken down.');
+      const i = pick(stacks), lost = Math.max(1, Math.ceil(G.inv[i] * .4)); G.inv[i] -= lost; if (!G.inv[i]) G.cost[i] = 0;
+      say(`ENFORCERS CONFISCATED ${lost} ${DRUGS[i].name}!`); float(`-${lost} ${DRUGS[i].name}`, pos.x, pos.y - 30, C(14,22,31));
+    } else { const fine = Math.min(G.cash, 300); G.cash -= fine; say(`NOTHING ON YOU, CITIZEN... BUT A ${money(fine)} FINE.`); float('-' + money(fine), pos.x, pos.y - 30, C(14,22,31)); }
+  } else { const lost = Math.round(G.cash * .2); G.cash -= lost; say(`THE SYNDICATE ROBBED YOU OF ${money(lost)}!`); float('-' + money(lost), pos.x, pos.y - 30, C(31,10,10)); }
+  if (G.health <= 0) endGame('YOU WERE DETAINED BY THE DIRECTORATE.');
 }
-
 function touchBuyer(b) {
   if (G.inv[b.drug] <= 0) return false;
-  const q = Math.min(G.inv[b.drug], Math.ceil(rnd(6, 14)));
-  G.inv[b.drug] -= q; if (!G.inv[b.drug]) G.cost[b.drug] = 0;
-  const gain = q * b.price; G.cash += gain;
-  const pos = edgePos(b.e, b.t);
-  float(`+${fmt(gain)}`, pos.x, pos.y - 24, '#3dff8a');
-  say(`Buyer paid ${fmt(b.price)} each for ${q} ${DRUGS[b.drug].name} (+${fmt(gain)})`);
+  const q = Math.min(G.inv[b.drug], Math.ceil(rnd(6, 14))); G.inv[b.drug] -= q; if (!G.inv[b.drug]) G.cost[b.drug] = 0;
+  const gain = q * b.price; G.cash += gain; const pos = edgePos(b.e, b.t);
+  float('+' + money(gain), pos.x, pos.y - 40, C(10,31,16)); say(`BUYER PAID ${money(b.price)} EACH FOR ${q} ${DRUGS[b.drug].name} (+${money(gain)})`);
   return true;
 }
 
-// ───────────────────────── Day cycle & events ─────────────────────────
+// ───────────────────────── Day cycle ─────────────────────────
 function nextDay() {
-  G.day++;
-  if (G.day > TOTAL_DAYS) return endGame('The 30 days are up.');
-  G.debt = Math.round(G.debt * (1 + INTEREST));
-  G.event = null; G.heat = 0;
+  G.day++; if (G.day > TOTAL_DAYS) return endGame('YOUR CONTRACT HAS EXPIRED.');
+  G.debt = Math.round(G.debt * (1 + INTEREST)); G.event = null; G.heat = 0;
   const r = Math.random();
-  if (r < 0.14) {
-    const d = Math.floor(Math.random()*DRUGS.length);
-    G.event = { drug:d, mult:rnd(2.4, 3.8) };
-    say(`Supply dried up! ${DRUGS[d].name} prices have skyrocketed today.`);
-  } else if (r < 0.28) {
-    const d = Math.floor(Math.random()*DRUGS.length);
-    G.event = { drug:d, mult:rnd(0.2, 0.4) };
-    say(`A shipment flooded the streets: ${DRUGS[d].name} is dirt cheap today!`);
-  } else if (r < 0.38) {
-    G.heat = 2; say('Heat wave! Extra cops are out on the streets today.');
-  } else if (r < 0.48) {
-    const gain = Math.round(rnd(200, 1500)); G.cash += gain; say(`You found a dropped wallet: +${fmt(gain)}`);
-  } else if (r < 0.56 && used() < CAPACITY) {
-    const d = Math.floor(Math.random()*DRUGS.length), q = Math.min(CAPACITY - used(), 1 + Math.floor(rnd(1, 6)));
-    G.inv[d] += q; say(`You found ${q} ${DRUGS[d].name} in an alley!`);
-  }
-  rollPrices();
-  spawnEnemies();
+  if (r < .14) { const d = Math.floor(Math.random()*DRUGS.length); G.event = { drug:d, mult:rnd(2.4, 3.8) }; say(`SUPPLY LINES CUT! ${DRUGS[d].name} PRICES ARE SOARING TODAY.`); }
+  else if (r < .28) { const d = Math.floor(Math.random()*DRUGS.length); G.event = { drug:d, mult:rnd(.2, .4) }; say(`A SMUGGLED SHIPMENT: ${DRUGS[d].name} IS DIRT CHEAP TODAY!`); }
+  else if (r < .38) { G.heat = 2; say('CURFEW SWEEP! EXTRA ENFORCERS ARE ON THE STREETS.'); }
+  else if (r < .48) { const gain = Math.round(rnd(200, 1500)); G.cash += gain; say(`YOU FOUND AN UNTRACED CREDIT CHIP: +${money(gain)}`); }
+  else if (r < .56 && used() < CAPACITY) { const d = Math.floor(Math.random()*DRUGS.length), q = Math.min(CAPACITY - used(), 2 + Math.floor(rnd(0, 5))); G.inv[d] += q; say(`YOU FOUND ${q} ${DRUGS[d].name} IN A DEAD DROP!`); }
+  else say(`DAY ${G.day}. ${pick(SLOGANS)}`);
+  rollPrices(); spawnEnemies();
 }
 
 // ───────────────────────── Update ─────────────────────────
 function update(dt) {
-  G.time += dt;
-  G.dayT += dt;
+  G.time += dt; G.dayT += dt;
   if (G.dayT >= DAY_LEN) { G.dayT -= DAY_LEN; nextDay(); if (state !== 'play') return; }
   updatePlayer(dt);
   const pp = edgePos(G.p.e, G.p.t);
-  const target = pp;
   for (const en of G.enemies) {
     const chooser = en.type === 'gang'
-      ? (node, opts) => {
-          if (Math.random() < 0.15) return pick(opts);
-          let best = opts[0], bd = 1e9;
-          for (const i of opts) {
-            const far = edges[i].a === node ? edges[i].b : edges[i].a;
-            const d = Math.hypot(nodes[far].x - target.x, nodes[far].y - target.y);
-            if (d < bd) { bd = d; best = i; }
-          }
-          return best;
-        }
+      ? (node, opts) => { if (Math.random() < .15) return pick(opts); let best = opts[0], bd = 1e9; for (const i of opts) { const far = edges[i].a === node ? edges[i].b : edges[i].a, d = Math.hypot(nodes[far].x - pp.x, nodes[far].y - pp.y); if (d < bd) { bd = d; best = i; } } return best; }
       : (node, opts) => pick(opts);
-    moveOnGraph(en, en.speed * dt, chooser);
+    moveOnGraph(en, en.speed * dt, chooser); en.anim = (en.anim || 0) + dt;
     const ep = edgePos(en.e, en.t);
     if (G.p.inv <= 0 && G.p.dash <= 0 && Math.hypot(ep.x - pp.x, ep.y - pp.y) < 20) { hit(en); if (state !== 'play') return; }
   }
-  G.buyerT -= dt;
-  if (G.buyerT <= 0) { spawnBuyer(); G.buyerT = rnd(3, 6); }
+  G.buyerT -= dt; if (G.buyerT <= 0) { spawnBuyer(); G.buyerT = rnd(3, 6); }
   for (let i = G.buyers.length - 1; i >= 0; i--) {
-    const b = G.buyers[i]; b.life -= dt;
-    const bp = edgePos(b.e, b.t);
+    const b = G.buyers[i]; b.life -= dt; const bp = edgePos(b.e, b.t);
     if (Math.hypot(bp.x - pp.x, bp.y - pp.y) < 24 && touchBuyer(b)) b.life = 0;
     if (b.life <= 0) G.buyers.splice(i, 1);
   }
-  for (let i = G.floats.length - 1; i >= 0; i--) { const f = G.floats[i]; f.life -= dt; f.y -= 30*dt; if (f.life <= 0) G.floats.splice(i, 1); }
-  const n = playerNode();
-  $('enter').style.display = n >= 0 ? 'block' : 'none';
-  if (n >= 0) $('enter').textContent = `Enter ${nodes[n].name} [E]`;
+  for (let i = G.floats.length - 1; i >= 0; i--) { const f = G.floats[i]; f.life -= dt; f.y -= 22*dt; if (f.life <= 0) G.floats.splice(i, 1); }
 }
 
-// ───────────────────────── Market UI ─────────────────────────
-let marketNode = -1;
-function tryEnter() { const n = playerNode(); if (n >= 0) openMarket(n); }
-$('enter').addEventListener('click', tryEnter);
-function openMarket(n) { marketNode = n; state = 'market'; $('enter').style.display = 'none'; renderMarket(); $('market').classList.add('show'); }
-function closeMarket() { state = 'play'; $('market').classList.remove('show'); last = performance.now(); }
-
-function renderMarket() {
-  const n = marketNode, node = nodes[n], pr = G.prices[n];
-  let h = `<h2>${node.name}</h2><p>Day ${G.day}/${TOTAL_DAYS} &middot; Cash <b>${fmt(G.cash)}</b> &middot; Carrying <b>${used()}/${CAPACITY}</b>`;
-  if (G.event && G.event.drug !== undefined) h += ` &middot; <b>${DRUGS[G.event.drug].name}</b> ${G.event.mult > 1 ? 'spiking' : 'crashing'}`;
-  h += `</p><table><tr><th>Drug</th><th class="num">Price</th><th class="num">Own</th><th class="num">Avg paid</th><th>Buy</th><th>Sell</th></tr>`;
-  DRUGS.forEach((d, i) => {
-    const cheap = pr[i] < (d.min + d.max)/2 * 0.7, dear = pr[i] > (d.min + d.max)/2 * 1.3;
-    const maxBuy = Math.min(Math.floor(G.cash / pr[i]), CAPACITY - used());
-    h += `<tr><td style="color:${d.color}">${d.name}</td>
-      <td class="num" style="color:${cheap?'var(--green)':dear?'var(--red)':'inherit'}">${fmt(pr[i])}</td>
-      <td class="num">${G.inv[i]}</td><td class="num">${G.inv[i] ? fmt(G.cost[i]) : '-'}</td>
-      <td><button data-a="buy" data-i="${i}" data-q="1" ${maxBuy<1?'disabled':''}>+1</button>
-          <button data-a="buy" data-i="${i}" data-q="${maxBuy}" ${maxBuy<1?'disabled':''}>Max</button></td>
-      <td><button data-a="sell" data-i="${i}" data-q="1" ${G.inv[i]<1?'disabled':''}>-1</button>
-          <button data-a="sell" data-i="${i}" data-q="${G.inv[i]}" ${G.inv[i]<1?'disabled':''}>All</button></td></tr>`;
-  });
-  h += `</table>`;
-  if (node.hub) {
-    h += `<p>Loan Shark: you owe <b style="color:var(--red)">${fmt(G.debt)}</b> (+${Math.round(INTEREST*100)}%/day) &middot; Health <b>${Math.round(G.health)}%</b></p><div class="row">
-      <button data-a="pay" data-q="1000" ${G.cash<1||G.debt<1?'disabled':''}>Pay $1,000</button>
-      <button data-a="pay" data-q="all" ${G.cash<1||G.debt<1?'disabled':''}>Pay max</button>
-      <button data-a="borrow" ${G.day>=TOTAL_DAYS?'disabled':''}>Borrow $1,000</button>
-      <button data-a="heal" ${G.cash<400||G.health>=100?'disabled':''}>Medic: heal $400</button></div>`;
-  }
-  h += `<div class="row"><span class="spacer"></span><button class="primary" data-a="close">Back to the streets [Esc]</button></div>`;
-  $('marketCard').innerHTML = h;
+// ───────────────────────── Market ─────────────────────────
+let marketNode = -1, sel = 0;
+function tryEnter() { const n = playerNode(); if (n >= 0) { marketNode = n; sel = 0; state = 'market'; pointer = null; } }
+function closeMarket() { state = 'play'; last = performance.now(); }
+const rowCount = () => 6 + (nodes[marketNode].hub ? 4 : 0);
+function buy(i, q) {
+  const price = G.prices[marketNode][i], n = Math.min(q === 'max' ? Infinity : q, Math.floor(G.cash / price), CAPACITY - used());
+  if (n > 0) { G.cost[i] = (G.cost[i]*G.inv[i] + price*n) / (G.inv[i] + n); G.inv[i] += n; G.cash -= n*price; }
 }
-$('marketCard').addEventListener('click', ev => {
-  const b = ev.target.closest('button'); if (!b || b.disabled) return;
-  const a = b.dataset.a, i = +b.dataset.i;
-  if (a === 'close') return closeMarket();
-  const price = G.prices[marketNode][i];
-  if (a === 'buy') {
-    const q = Math.min(+b.dataset.q, Math.floor(G.cash/price), CAPACITY - used());
-    if (q > 0) { G.cost[i] = (G.cost[i]*G.inv[i] + price*q) / (G.inv[i] + q); G.inv[i] += q; G.cash -= q*price; }
-  } else if (a === 'sell') {
-    const q = Math.min(+b.dataset.q, G.inv[i]);
-    G.cash += q*price; G.inv[i] -= q; if (!G.inv[i]) G.cost[i] = 0;
-  } else if (a === 'pay') {
-    const amt = Math.min(G.cash, G.debt, b.dataset.q === 'all' ? Infinity : +b.dataset.q);
-    G.cash -= amt; G.debt -= amt;
-  } else if (a === 'borrow') { G.cash += 1000; G.debt += 1000; }
-  else if (a === 'heal' && G.cash >= 400) { G.cash -= 400; G.health = 100; }
-  renderMarket(); updateHud();
-});
-
-// ───────────────────────── HUD / end ─────────────────────────
-function updateHud() {
-  const hp = Math.round(G.health);
-  $('hud').innerHTML = `<span>Day <b>${G.day}/${TOTAL_DAYS}</b></span><span>Cash <b class="good">${fmt(G.cash)}</b></span>
-    <span>Debt <b class="bad">${fmt(G.debt)}</b></span><span>Health <b class="${hp<40?'bad':''}">${hp}%</b></span>
-    <span>Pack <b>${used()}/${CAPACITY}</b></span><span>Dash <b>${G.p.cd > 0 ? Math.ceil(G.p.cd*10)/10 + 's' : 'ready'}</b></span>`;
+function sell(i, q) { const n = Math.min(q === 'all' ? Infinity : q, G.inv[i]); if (n > 0) { G.cash += n * G.prices[marketNode][i]; G.inv[i] -= n; if (!G.inv[i]) G.cost[i] = 0; } }
+const ACTIONS = [
+  { label:() => 'PAY $1,000',    on:() => G.cash >= 1 && G.debt >= 1, run:() => { const a = Math.min(G.cash, G.debt, 1000); G.cash -= a; G.debt -= a; }, info:() => 'DEBT ' + money(G.debt) },
+  { label:() => 'PAY IT ALL',    on:() => G.cash >= 1 && G.debt >= 1, run:() => { const a = Math.min(G.cash, G.debt); G.cash -= a; G.debt -= a; }, info:() => '' },
+  { label:() => 'BORROW $1,000', on:() => G.day < TOTAL_DAYS,         run:() => { G.cash += 1000; G.debt += 1000; }, info:() => '+8%/DAY' },
+  { label:() => 'CLINIC $400',   on:() => G.cash >= 400 && G.health < 100, run:() => { G.cash -= 400; G.health = 100; }, info:() => 'HEALTH ' + Math.round(G.health) + '%' },
+];
+function marketKey(ev) {
+  const c = ev.code, shift = ev.shiftKey;
+  if (c === 'Escape' || c === 'KeyE' || c === 'Backspace') return closeMarket();
+  if (c === 'ArrowUp' || c === 'KeyW') sel = (sel + rowCount() - 1) % rowCount();
+  else if (c === 'ArrowDown' || c === 'KeyS') sel = (sel + 1) % rowCount();
+  else if (sel < 6 && (c === 'ArrowRight' || c === 'KeyD')) buy(sel, shift ? 'max' : 1);
+  else if (sel < 6 && (c === 'ArrowLeft' || c === 'KeyA')) sell(sel, shift ? 'all' : 1);
+  else if (sel >= 6 && (c === 'Enter' || c === 'Space')) { const a = ACTIONS[sel - 6]; if (a.on()) a.run(); }
 }
+
+// ───────────────────────── Game flow ─────────────────────────
 function endGame(reason) {
-  state = 'over'; $('enter').style.display = 'none'; $('market').classList.remove('show');
-  const score = Math.round(G.cash - G.debt);
+  state = 'over'; G.over = { reason, score:Math.round(G.cash - G.debt) };
   let best = 0; try { best = +localStorage.getItem('dopeshow-best') || 0; } catch (e) {}
-  const isBest = score > best; if (isBest) try { localStorage.setItem('dopeshow-best', score); } catch (e) {}
-  const dead = G.health <= 0;
-  $('overCard').innerHTML = `<h2>${dead ? 'BUSTED' : 'GAME OVER'}</h2><p>${reason}</p>
-    <p>Cash <b>${fmt(G.cash)}</b> &minus; Debt <b>${fmt(G.debt)}</b> = <b style="color:${score>=0?'var(--green)':'var(--red)'}">${fmt(score)}</b>${isBest ? ' &mdash; <b>new best!</b>' : ''}</p>
-    <div class="row"><span class="spacer"></span><button class="primary" id="again">Play again</button></div>`;
-  $('over').classList.add('show');
-  $('again').onclick = start;
+  G.over.best = G.over.score > best; if (G.over.best) try { localStorage.setItem('dopeshow-best', G.over.score); } catch (e) {}
 }
-function start() {
-  newGame(); state = 'play'; last = performance.now();
-  $('title').classList.remove('show'); $('over').classList.remove('show'); $('market').classList.remove('show');
-  say('Find a tower, buy low, sell high. Watch for cops!');
-}
-$('start').onclick = start;
-try { const b = +localStorage.getItem('dopeshow-best'); if (b) $('best').textContent = 'Best: ' + fmt(b); } catch (e) {}
+function start() { newGame(); state = 'play'; last = performance.now(); say('FIND A TOWER, BUY LOW, SELL HIGH. WATCH FOR ENFORCERS.'); }
 
 // ───────────────────────── Render ─────────────────────────
-const ctx = cv.getContext('2d');
-function tri(x, y, r, color, ang) {
-  ctx.fillStyle = color; ctx.beginPath();
-  for (let k = 0; k < 3; k++) { const a = ang + k*2*Math.PI/3; ctx[k ? 'lineTo' : 'moveTo'](x + Math.cos(a)*r, y + Math.sin(a)*r); }
-  ctx.closePath(); ctx.fill();
-}
-function draw() {
-  ctx.clearRect(0, 0, W, W);
-  ctx.lineCap = 'round';
-  for (const e of edges) {
-    const a = nodes[e.a], b = nodes[e.b];
-    ctx.strokeStyle = '#242436'; ctx.lineWidth = 22; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-    ctx.strokeStyle = '#3a3a55'; ctx.lineWidth = 2; ctx.setLineDash([10, 12]); ctx.stroke(); ctx.setLineDash([]);
-  }
-  if (!G) return;
-  const pn = playerNode();
-  nodes.forEach((n, i) => {
-    const r = n.hub ? 40 : 30, glow = n.hub ? '#ffd23d' : '#8b6bff';
-    ctx.save(); ctx.shadowColor = glow; ctx.shadowBlur = pn === i ? 28 : 12;
-    ctx.fillStyle = '#12121c'; ctx.strokeStyle = glow; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.roundRect(n.x - r, n.y - r, r*2, r*2, 8); ctx.fill(); ctx.stroke(); ctx.restore();
-    ctx.fillStyle = glow; // windows
-    for (let wy = -1; wy <= 1; wy++) for (let wx = -1; wx <= 1; wx++) ctx.fillRect(n.x + wx*r*0.5 - 3, n.y + wy*r*0.5 - 3, 6, 6);
-    ctx.fillStyle = '#e8e8f0'; ctx.font = 'bold 13px ui-monospace,monospace'; ctx.textAlign = 'center';
-    ctx.fillText(n.name, n.x, n.y + r + 18);
-  });
-  for (const b of G.buyers) {
-    const p = edgePos(b.e, b.t), blink = b.life < 5 && Math.floor(G.time*4) % 2;
-    if (blink) continue;
-    ctx.fillStyle = '#0d2a18'; ctx.strokeStyle = '#3dff8a'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(p.x, p.y, 15, 0, 7); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = DRUGS[b.drug].color; ctx.font = 'bold 14px ui-monospace,monospace'; ctx.textAlign = 'center'; ctx.fillText(DRUGS[b.drug].key, p.x, p.y + 5);
-    ctx.fillStyle = '#3dff8a'; ctx.font = '11px ui-monospace,monospace'; ctx.fillText('$' + b.price.toLocaleString(), p.x, p.y - 21);
-  }
-  for (const en of G.enemies) {
-    const p = edgePos(en.e, en.t), c = en.type === 'gang' ? '#ff4d5e' : '#4da3ff';
-    ctx.save(); ctx.shadowColor = c; ctx.shadowBlur = 10;
-    tri(p.x, p.y, 13, c, Math.atan2(edges[en.e].dy*en.dir, edges[en.e].dx*en.dir)); ctx.restore();
-  }
-  const pp = edgePos(G.p.e, G.p.t);
-  if (!(G.p.inv > 0 && Math.floor(G.time*12) % 2)) {
-    ctx.save(); ctx.shadowColor = '#ffd23d'; ctx.shadowBlur = G.p.dash > 0 ? 28 : 12;
-    ctx.fillStyle = G.p.dash > 0 ? '#fff' : '#ffd23d'; ctx.beginPath(); ctx.arc(pp.x, pp.y, 10, 0, 7); ctx.fill(); ctx.restore();
-  }
-  for (const f of G.floats) {
-    ctx.globalAlpha = Math.min(1, f.life); ctx.fillStyle = f.color; ctx.font = 'bold 15px ui-monospace,monospace'; ctx.textAlign = 'center'; ctx.fillText(f.text, f.x, f.y);
-  }
+function shadowAt(fx, fy) { ctx.fillStyle = 'rgba(0,0,0,.42)'; ctx.fillRect(fx-3, fy-1, 6, 1); ctx.fillRect(fx-5, fy, 10, 1); ctx.fillRect(fx-3, fy+1, 6, 1); }
+function charFrame(face, anim, moving) { return moving ? [1, 0, 2, 0][Math.floor(anim * 8) % 4] : 0; }
+function drawChar(who, fx, fy, face, frame, alpha) {
+  const dir = Math.abs(face.dy) > Math.abs(face.dx) ? (face.dy > 0 ? 'down' : 'up') : 'side', flip = dir === 'side' && face.dx < 0, img = SPR[who][dir][frame];
+  if (alpha < 1) ctx.globalAlpha = alpha; else shadowAt(fx, fy);
+  if (flip) { ctx.save(); ctx.translate(fx + 8, fy - 18); ctx.scale(-1, 1); ctx.drawImage(img, 0, 0); ctx.restore(); } else ctx.drawImage(img, fx - 8, fy - 18);
   ctx.globalAlpha = 1;
-  // day timer ring in the corner
-  ctx.fillStyle = '#8a8aa0'; ctx.font = '12px ui-monospace,monospace'; ctx.textAlign = 'left'; ctx.fillText('Next day', 14, 22);
-  ctx.fillStyle = '#242436'; ctx.fillRect(14, 28, 100, 6); ctx.fillStyle = '#ffd23d'; ctx.fillRect(14, 28, 100 * G.dayT/DAY_LEN, 6);
-  if (G.event && G.event.drug !== undefined) { ctx.fillStyle = G.event.mult > 1 ? '#ff4d5e' : '#3dff8a'; ctx.fillText(`${DRUGS[G.event.drug].name} ${G.event.mult > 1 ? 'SPIKE' : 'CRASH'}`, 14, 52); }
-  if (G.heat) { ctx.fillStyle = '#4da3ff'; ctx.fillText('HEAT WAVE', 14, 70); }
+}
+function drawTower(i) {
+  const n = BN[i], s = TOWER_SPR[i], x = n.x - (s.width >> 1), y = n.y + 5 - (s.height - 1), nd = nodes[i];
+  ctx.drawImage(s, x, y);
+  const flick = (Math.sin(T*3 + i*2) > -.93) ? 1 : 0;                       // neon sign flicker
+  const col = flick ? nd.neon : K.dim, label = nd.name, bandX = nd.hub ? x + 9 : x + 2, bandW = nd.hub ? 30 : 30, bandY = nd.hub ? y + 30 : y + 12;
+  ctx.fillStyle = flick ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,0)'; ctx.fillRect(bandX, bandY, bandW, 9);
+  text(label, bandX + 1 + (bandW - (label.length*6 - 1)) / 2 | 0, bandY + 1, col, { shadow:K.shadow });
+  if (nd.hub) {                                                              // the all-seeing eye follows you
+    const pp = edgePos(G.p.e, G.p.t), dx = Math.sign(wx(pp.x) - n.x) * Math.min(3, Math.abs(wx(pp.x) - n.x) / 20), dy = Math.sign(wy(pp.y) - (y + 20)) * Math.min(1, Math.abs(wy(pp.y) - y - 20) / 40);
+    const ex = x + 24 + Math.round(dx), ey = y + 8 + Math.round(dy);
+    ctx.fillStyle = K.glint; ctx.fillRect(ex - 1, ey - 1, 3, 3); ctx.fillStyle = K.out; ctx.fillRect(ex, ey, 1, 1);
+  }
+}
+function drawWorld() {
+  ctx.drawImage(BG, 0, 0);
+  const list = [];
+  nodes.forEach((n, i) => list.push({ y:BN[i].y + 5, draw:() => drawTower(i) }));
+  const pp = edgePos(G.p.e, G.p.t), pn = playerNode();
+  const chars = [];
+  for (const b of G.buyers) { const p = edgePos(b.e, b.t), fx = wx(p.x), fy = wy(p.y); chars.push({ y:fy, draw:a => { drawChar('buyer', fx, fy, { dx:0, dy:1 }, 0, a); } , bubble:() => drawBubble(b, fx, fy) }); }
+  for (const en of G.enemies) {
+    const p = edgePos(en.e, en.t), fx = wx(p.x), fy = wy(p.y), face = { dx:edges[en.e].dx * en.dir, dy:edges[en.e].dy * en.dir };
+    chars.push({ y:fy, draw:a => drawChar(en.type, fx, fy, face, charFrame(face, en.anim || 0, true), a) });
+  }
+  const blink = G.p.inv > 0 && Math.floor(T*12) % 2;
+  chars.push({ y:wy(pp.y) + (pn >= 0 ? 9 : 0), draw:a => { if (!blink) drawChar('player', wx(pp.x), wy(pp.y), G.p.face, charFrame(G.p.face, G.p.anim, G.p.moving), a); } });
+  for (const c of chars) list.push(c);
+  list.sort((a, b) => a.y - b.y);
+  for (const o of list) o.draw(1);
+  for (const c of chars) c.draw(.45);                                       // x-ray ghost where a tower hides someone
+  for (const c of chars) if (c.bubble) c.bubble();
+  for (const d of dust) { ctx.fillStyle = 'rgb(165,160,170)'; const s = d.life > .2 ? 2 : 1; ctx.fillRect(d.x, d.y - (.35 - d.life)*10 | 0, s, s); }
+  for (const f of G.floats) { ctx.globalAlpha = Math.min(1, f.life); text(f.text, wx(f.x), wy(f.y), f.color, { align:'c' }); ctx.globalAlpha = 1; }
+  // ash falling in the smog
+  for (const a of ash) { ctx.fillStyle = a.big ? 'rgba(170,165,175,.55)' : 'rgba(150,145,160,.7)'; const s = a.big ? 2 : 1; ctx.fillRect(Math.floor(a.x), Math.floor(a.y), s, s); }
+  ctx.drawImage(VIGNETTE, 0, 0);
+  if (G.heat) { ctx.globalAlpha = .22 + .1 * Math.sin(T*6); ctx.fillStyle = 'rgb(200,20,30)'; ctx.fillRect(0, 0, SZ, SZ); ctx.globalAlpha = 1; }
+}
+function drawBubble(b, fx, fy) {
+  if (b.life < 5 && Math.floor(T*4) % 2) return;
+  const s = DRUGS[b.drug].key + ' ' + money(b.price), w = s.length*6 + 5, x = fx - (w >> 1), y = fy - 18 - 13;
+  rr(x, y, w, 12, K.out); rr(x+1, y+1, w-2, 10, K.winLight); rr(x+2, y+2, w-4, 8, K.winFill);
+  ctx.fillStyle = K.winLight; ctx.fillRect(fx - 1, y + 12, 3, 1); ctx.fillStyle = K.out; ctx.fillRect(fx, y + 13, 1, 1);
+  text(DRUGS[b.drug].key, x + 4, y + 3, DRUGS[b.drug].color, { shadow:false }); text(money(b.price), x + 4 + 12, y + 3, C(12,31,18), { shadow:false });
+}
+
+// HUD in the style of the SNES overlay: no panel, drop-shadowed text, hearts, magic meter.
+function drawHUD() {
+  ctx.drawImage(COIN, 4, 4); text(money(G.cash), 14, 4, K.white);
+  ctx.drawImage(SKULL, 4, 14); text(money(G.debt), 14, 14, C(31,12,12));
+  text(`DAY ${G.day}/${TOTAL_DAYS}`, 4, 25, C(30,26,10));
+  rr(4, 35, 40, 4, K.out); ctx.fillStyle = K.dark[1]; ctx.fillRect(5, 36, 38, 2); ctx.fillStyle = C(30,26,10); ctx.fillRect(5, 36, Math.round(38 * G.dayT / DAY_LEN), 2);
+  const halves = Math.max(0, Math.ceil(G.health / 10));
+  for (let i = 0; i < 5; i++) { const h = Math.max(0, Math.min(2, halves - i*2)); ctx.drawImage(h === 2 ? HEARTS.full : h === 1 ? HEARTS.half : HEARTS.empty, 256 - 4 - 5*9 + i*9, 4); }
+  text(`PACK ${used()}/${CAPACITY}`, 252, 15, used() >= CAPACITY ? C(31,12,12) : K.white, { align:'r' });
+  // dash = the magic meter
+  const mx = 4, my = 44, mh = 38, fill = G.p.cd > 0 ? 1 - G.p.cd / DASH_CD : 1;
+  rr(mx, my, 9, mh, K.out); rr(mx + 1, my + 1, 7, mh - 2, K.winLight); ctx.fillStyle = K.dark[0]; ctx.fillRect(mx + 2, my + 2, 5, mh - 4);
+  const fh = Math.round((mh - 4) * fill); ctx.fillStyle = fill >= 1 ? C(8,28,10) : C(5,16,8); ctx.fillRect(mx + 2, my + 2 + (mh - 4 - fh), 5, fh);
+  if (fh > 0) { ctx.fillStyle = C(18,31,18); ctx.fillRect(mx + 2, my + 2 + (mh - 4 - fh), 1, fh); }
+  if (G.event && G.event.drug !== undefined) text(`${DRUGS[G.event.drug].name} ${G.event.mult > 1 ? 'SPIKE' : 'CRASH'}`, 252, 25, G.event.mult > 1 ? C(31,10,10) : C(10,31,14), { align:'r' });
+  if (G.heat && Math.floor(T*3) % 2) text('CURFEW SWEEP', 252, 35, C(31,10,10), { align:'r' });
+  // enter prompt
+  const n = playerNode();
+  if (state === 'play' && n >= 0) {
+    const pp = edgePos(G.p.e, G.p.t), fx = wx(pp.x), fy = wy(pp.y), label = 'E: ENTER ' + nodes[n].name, w = label.length*6 + 8, x = Math.max(2, Math.min(SZ - w - 2, fx - (w >> 1))), y = fy - 32 - (Math.floor(T*3) % 2);
+    button(x, y, label, tryEnter, true, C(30,26,10));
+  }
+  // message window with typewriter text
+  const m = G.msg;
+  if (m.t < 4.5 && m.text) {
+    const chars = Math.floor(m.t * 45), shown = m.text.slice(0, chars), words = m.text.split(' '), lines = []; let cur = '';
+    for (const w of words) { if ((cur + ' ' + w).trim().length > 37) { lines.push(cur); cur = w; } else cur = (cur + ' ' + w).trim(); } lines.push(cur);
+    const h = lines.length*10 + 10, y = SZ - h - 4; win(4, y, 248, h);
+    let left = shown.length;
+    lines.forEach((l, i) => { const t = l.slice(0, Math.max(0, left)); left -= l.length + 1; text(t, 10, y + 6 + i*10, K.white); });
+  }
+}
+
+function drawMarket() {
+  ctx.drawImage(DITHER, 0, 0);
+  const nd = nodes[marketNode], pr = G.prices[marketNode]; win(6, 6, 244, 244);
+  text(nd.title, 128, 13, nd.neon, { align:'c', scale:1 });
+  text(`DAY ${G.day}/${TOTAL_DAYS}   CASH ${money(G.cash)}`, 14, 25, K.white);
+  text(`PACK ${used()}/${CAPACITY}   HP ${Math.round(G.health)}%`, 14, 35, K.dim);
+  if (G.event && G.event.drug !== undefined) text(`${DRUGS[G.event.drug].name} ${G.event.mult > 1 ? 'SPIKING' : 'CRASHING'}`, 242, 35, G.event.mult > 1 ? C(31,10,10) : C(10,31,14), { align:'r' });
+  text('GOODS', 26, 47, K.dim); text('PRICE', 106, 47, K.dim, { align:'r' }); text('OWN', 134, 47, K.dim, { align:'r' });
+  const rows = rowCount();
+  for (let r = 0; r < rows; r++) {
+    const y = 56 + r*16;
+    ui.hits.push({ x:10, y, w:236, h:15, fn:() => sel = r });
+    if (sel === r) { ctx.fillStyle = C(5,5,15); ctx.fillRect(10, y - 1, 236, 14); ctx.drawImage(CURSOR, 12 + (Math.floor(T*4) % 2), y + 1); }
+    if (r < 6) {
+      const d = DRUGS[r], avg = (d.min + d.max)/2, cheap = pr[r] < avg*.7, dear = pr[r] > avg*1.3, maxBuy = Math.min(Math.floor(G.cash / pr[r]), CAPACITY - used());
+      text(d.name, 26, y + 2, d.color); text(money(pr[r]), 106, y + 2, cheap ? C(10,31,14) : dear ? C(31,10,10) : K.white, { align:'r' });
+      text(G.inv[r], 134, y + 2, G.inv[r] ? K.white : K.dim, { align:'r' });
+      let bx = 142; const by = y;
+      bx += button(bx, by, '-', () => { sel = r; sell(r, 1); }, G.inv[r] > 0) + 2;
+      bx += button(bx, by, 'ALL', () => { sel = r; sell(r, 'all'); }, G.inv[r] > 0) + 2;
+      bx += button(bx, by, '+', () => { sel = r; buy(r, 1); }, maxBuy > 0) + 2;
+      button(bx, by, 'MAX', () => { sel = r; buy(r, 'max'); }, maxBuy > 0);
+    } else {
+      const a = ACTIONS[r - 6], en = a.on(); ui.hits.push({ x:10, y, w:236, h:15, fn:() => { sel = r; if (a.on()) a.run(); } });
+      text(a.label(), 26, y + 2, en ? K.white : K.dim); text(a.info(), 240, y + 2, K.dim, { align:'r' });
+    }
+  }
+  if (sel < 6 && G.inv[sel]) text(`AVG PAID ${money(G.cost[sel])}  NOW ${money(pr[sel])}`, 14, 214, K.dim);
+  if (nd.hub) text('CREDIT BUREAU: THE DIRECTORATE ALWAYS COLLECTS', 14, 224, C(20,10,10), { shadow:false });
+  button(180, 233, 'LEAVE [E]', closeMarket, true, C(30,26,10));
+  text('ARROWS TRADE  SHIFT=ALL', 14, 235, K.dim);
+}
+
+function drawTitle() {
+  ctx.drawImage(DITHER, 0, 0);
+  const wob = Math.round(Math.sin(T*2));
+  text('DOPE SHOW', 128, 26 + wob, C(31,8,8), { align:'c', scale:3, shadow:C(8,1,2) });
+  text('DOPE SHOW', 128, 24 + wob, C(31,22,6), { align:'c', scale:3, shadow:false });
+  text('A TALE OF THE DIRECTORATE', 128, 54, C(18,18,24), { align:'c' });
+  win(10, 70, 236, 118);
+  const L = ['THE DIRECTORATE OWNS THE CITY.', 'YOU OWE THE DIRECTORATE.', '30 DAYS TO PAY OR BE ERASED.', '', 'WASD/ARROWS  RUN THE ROADS', 'E  ENTER A TOWER     SPACE  DASH', 'SELL TO BUYERS  M $1,200', 'DODGE ENFORCERS AND SYNDICATE'];
+  L.forEach((l, i) => text(l, 128, 80 + i*12, i < 3 ? K.white : K.dim, { align:'c' }));
+  if (Math.floor(T*2) % 2) text('PRESS ENTER', 128, 198, K.white, { align:'c' });
+  button(100, 212, ' START ', start, true, C(30,26,10));
+  let best = 0; try { best = +localStorage.getItem('dopeshow-best') || 0; } catch (e) {}
+  if (best) text('BEST ' + money(best), 128, 236, C(30,26,10), { align:'c' });
+}
+function drawOver() {
+  ctx.drawImage(DITHER, 0, 0); win(24, 70, 208, 112);
+  const dead = G.health <= 0;
+  text(dead ? 'DETAINED' : 'TIME UP', 128, 80, C(31,10,10), { align:'c', scale:2 });
+  text(G.over.reason, 128, 100, K.dim, { align:'c' });
+  text(`CASH ${money(G.cash)}`, 128, 116, K.white, { align:'c' }); text(`DEBT ${money(G.debt)}`, 128, 127, C(31,12,12), { align:'c' });
+  text(`SCORE ${money(G.over.score)}`, 128, 141, G.over.score >= 0 ? C(10,31,14) : C(31,10,10), { align:'c' });
+  if (G.over.best) text('NEW BEST!', 128, 153, C(30,26,10), { align:'c' });
+  button(96, 165, ' TRY AGAIN ', start, true, C(30,26,10));
 }
 
 // ───────────────────────── Loop ─────────────────────────
-let last = performance.now();
 function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  if (state === 'play') update(dt);
-  if (G) updateHud();
-  draw();
+  const dt = Math.min(.05, (now - last) / 1000); last = now; T += dt; ui.hits = [];
+  if (state === 'play') { update(dt); for (let i = dust.length - 1; i >= 0; i--) { dust[i].life -= dt; if (dust[i].life <= 0) dust.splice(i, 1); } }
+  G.msg.t += dt;
+  for (const a of ash) { a.y += a.vy*dt; a.x += a.vx*dt; if (a.y > SZ) { a.y = 0; a.x = Math.random()*SZ; } if (a.x > SZ) a.x = 0; }
+  ctx.clearRect(0, 0, SZ, SZ); drawWorld();
+  if (state === 'play') drawHUD();
+  else if (state === 'market') drawMarket();
+  else if (state === 'title') drawTitle();
+  else if (state === 'over') { drawHUD(); drawOver(); }
   requestAnimationFrame(frame);
 }
+function fit() {
+  const m = Math.min(innerWidth, innerHeight), size = m < 512 ? m : SZ * Math.floor(m / SZ);
+  cv.style.width = cv.style.height = size + 'px';
+}
+addEventListener('resize', fit); fit();
+newGame();
 requestAnimationFrame(frame);
 </script>
 </body>
