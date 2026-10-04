@@ -2,16 +2,99 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#050508">
 <title>Dope Show</title>
 <style>
-  html,body { margin:0; height:100%; background:#050508; overflow:hidden; }
-  body { display:flex; align-items:center; justify-content:center; }
-  canvas { image-rendering:crisp-edges; image-rendering:pixelated; touch-action:none; display:block; }
+  /* Handheld shell, in the game's palette: indigo plastic, gold trim, neon-red buttons. */
+  :root { --plastic:#26243f; --plastic-hi:#34315a; --plastic-lo:#17162a; --bezel:#0c0b16; --gold:#f7d24a; --red:#ea3d4f; --red-lo:#8f1526; --ink:#8d8ab4; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; background:#050508; overflow:hidden; overscroll-behavior:none; }
+  body { display:flex; align-items:center; justify-content:center; touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
+         font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif; }
+  #gb { container-type:inline-size; position:relative; width:min(100vw, calc(100dvh / 1.66), 560px); height:min(100dvh, calc(min(100vw, 560px) * 2.2)); min-height:calc(min(100vw, calc(100dvh / 1.66), 560px) * 1.66);
+        background:linear-gradient(160deg, var(--plastic-hi) 0%, var(--plastic) 45%, var(--plastic-lo) 100%);
+        border-radius:3cqw 3cqw 15cqw 3cqw; box-shadow:inset 0 0.6cqw 0 rgba(255,255,255,.08), inset -0.8cqw -1cqw 0 rgba(0,0,0,.35), 0 2cqw 6cqw rgba(0,0,0,.6);
+        padding:0 4cqw; display:flex; flex-direction:column; }
+  /* top ridge with the power switch */
+  .ridge { height:7cqw; position:relative; border-bottom:0.4cqw solid rgba(0,0,0,.35); margin:0 -4cqw; box-shadow:0 0.4cqw 0 rgba(255,255,255,.05); }
+  .ridge::before, .ridge::after { content:""; position:absolute; top:0; bottom:0; width:0.4cqw; background:rgba(0,0,0,.35); }
+  .ridge::before { left:4cqw; } .ridge::after { right:4cqw; }
+  #power { position:absolute; left:9cqw; top:1.2cqw; display:flex; align-items:center; gap:1.6cqw; cursor:pointer; }
+  .slot { width:13cqw; height:3cqw; border-radius:2cqw; background:var(--plastic-lo); box-shadow:inset 0 0.5cqw 0.8cqw rgba(0,0,0,.7); position:relative; }
+  .knob { position:absolute; top:-0.4cqw; left:0; width:6cqw; height:3.8cqw; border-radius:1cqw; background:linear-gradient(#55527c,#2c2a48);
+          box-shadow:0 0.4cqw 0 #121122; transition:left .18s; }
+  .knob::after { content:""; position:absolute; inset:0.9cqw 1.6cqw; background:repeating-linear-gradient(90deg,#1a1930 0 0.4cqw,transparent 0.4cqw 0.9cqw); }
+  .on .knob { left:7cqw; }
+  .plabel { font-size:2.4cqw; letter-spacing:0.3cqw; color:var(--ink); font-weight:bold; }
+  .plabel b { color:var(--gold); } .on .plabel b { text-shadow:0 0 1.5cqw var(--gold); }
+  #hint { position:absolute; left:46cqw; top:1.5cqw; font-size:2.4cqw; color:var(--gold); font-weight:bold; letter-spacing:.3cqw; animation:blink 1s steps(2) infinite; }
+  .on #hint { display:none; }
+  @keyframes blink { 50% { opacity:0; } }
+  /* screen */
+  .bezel { margin-top:3.5cqw; background:var(--bezel); border-radius:2cqw 2cqw 9cqw 2cqw; padding:1.2cqw 2.4cqw 5cqw; box-shadow:inset 0 0 0 0.3cqw #1f1d36; }
+  .btop { display:flex; align-items:center; gap:1.5cqw; height:5cqw; font-size:2.2cqw; color:var(--ink); letter-spacing:.25cqw; white-space:nowrap; }
+  .btop .line { flex:1; height:0.5cqw; background:linear-gradient(var(--red) 0 33%, transparent 33% 66%, var(--gold) 66%); opacity:.8; }
+  #led { width:2cqw; height:2cqw; border-radius:50%; background:#3a0c12; box-shadow:inset 0 0.3cqw 0.4cqw rgba(0,0,0,.6); flex:none; }
+  .on #led { background:#ff3346; box-shadow:0 0 1.6cqw #ff3346, 0 0 0.6cqw #ff99a2; }
+  .screen { position:relative; width:100%; aspect-ratio:1; background:#06060c; border-radius:0.6cqw; overflow:hidden; box-shadow:inset 0 0 2cqw rgba(0,0,0,.9); }
+  canvas { position:absolute; inset:0; width:100%; height:100%; image-rendering:crisp-edges; image-rendering:pixelated; display:block; opacity:0; transition:opacity .25s; }
+  .on canvas { opacity:1; }
+  .screen::after { content:""; position:absolute; inset:0; pointer-events:none; background:linear-gradient(130deg, rgba(255,255,255,.07) 0%, rgba(255,255,255,0) 35%); }
+  /* logo */
+  .logo { margin:2.6cqw 0 0 1cqw; font-family:"Arial Black","Trebuchet MS",sans-serif; font-weight:900; font-style:italic; font-size:6.4cqw; letter-spacing:-0.1cqw;
+          color:var(--gold); text-shadow:0.5cqw 0.5cqw 0 var(--red-lo); line-height:1; }
+  .logo span { font-size:3cqw; color:var(--red); text-shadow:none; letter-spacing:.4cqw; margin-left:1.5cqw; vertical-align:middle; font-style:normal; }
+  /* controls */
+  .controls { position:relative; flex:1; min-height:52cqw; }
+  .pad-area { position:absolute; left:0; right:0; top:50%; height:46cqw; transform:translateY(-58%); }
+  #dpad { position:absolute; left:3cqw; top:6cqw; width:33cqw; height:33cqw; touch-action:none; }
+  #dpad .h, #dpad .v { position:absolute; background:linear-gradient(145deg,#2b2a3c,#0f0f19); border-radius:1.2cqw; box-shadow:0 0.8cqw 0 #06060c, inset 0 0.3cqw 0 rgba(255,255,255,.08); }
+  #dpad .h { left:0; right:0; top:34%; height:32%; } #dpad .v { top:0; bottom:0; left:34%; width:32%; }
+  #dpad .hub { position:absolute; left:43%; top:43%; width:14%; height:14%; border-radius:50%; background:radial-gradient(#0b0b14,#1d1c2c); }
+  #dpad i { position:absolute; width:0; height:0; border:1.6cqw solid transparent; opacity:.35; }
+  #dpad .au { left:50%; top:6%; transform:translateX(-50%); border-bottom-color:#9a98c4; border-top:0; }
+  #dpad .ad { left:50%; bottom:6%; transform:translateX(-50%); border-top-color:#9a98c4; border-bottom:0; }
+  #dpad .al { top:50%; left:6%; transform:translateY(-50%); border-right-color:#9a98c4; border-left:0; }
+  #dpad .ar { top:50%; right:6%; transform:translateY(-50%); border-left-color:#9a98c4; border-right:0; }
+  #dpad.up .v { transform:translateY(-0.4cqw) rotateX(12deg); } #dpad.down .v { transform:rotateX(-12deg); }
+  #dpad.left .h { transform:rotateY(-12deg); } #dpad.right .h { transform:rotateY(12deg); }
+  #dpad.up .au, #dpad.down .ad, #dpad.left .al, #dpad.right .ar { opacity:1; }
+  .ab { position:absolute; right:2cqw; top:8cqw; width:42cqw; height:26cqw; transform:rotate(-25deg); border-radius:14cqw; background:rgba(0,0,0,.18); box-shadow:inset 0 0.4cqw 0.8cqw rgba(0,0,0,.35); }
+  .btn { position:absolute; top:4cqw; width:17cqw; height:17cqw; border-radius:50%; border:0; padding:0; touch-action:none; cursor:pointer;
+         background:radial-gradient(circle at 35% 30%, #ff7b88 0%, var(--red) 40%, var(--red-lo) 100%); box-shadow:0 1cqw 0 #4a0912, 0 1.4cqw 1.4cqw rgba(0,0,0,.45); }
+  .btn.pressed { transform:translateY(0.8cqw); box-shadow:0 0.2cqw 0 #4a0912; filter:brightness(1.15); }
+  #bB { left:3cqw; } #bA { right:3cqw; }
+  .btn + .lbl, .lbl { position:absolute; top:22.5cqw; font-size:3.6cqw; font-weight:900; color:var(--ink); letter-spacing:.3cqw; }
+  .lbl.b { left:10cqw; } .lbl.a { right:10cqw; }
+  .grille { position:absolute; right:5cqw; bottom:3.5cqw; display:flex; gap:2.2cqw; transform:rotate(-28deg); }
+  .grille i { width:1.6cqw; height:10cqw; border-radius:1cqw; background:var(--plastic-lo); box-shadow:inset 0 0.5cqw 0.6cqw rgba(0,0,0,.8); }
+  .badge { position:absolute; left:6cqw; bottom:4.5cqw; font-size:2.2cqw; color:var(--ink); letter-spacing:.3cqw; opacity:.8; }
+  .badge b { color:var(--red); }
 </style>
 </head>
 <body>
-<canvas id="c" width="256" height="256"></canvas>
+<div id="gb">
+  <div class="ridge">
+    <div id="power" role="switch" aria-label="Power"><span class="plabel">OFF&#9664;</span><div class="slot"><div class="knob"></div></div><span class="plabel">&#9654;<b>ON</b></span></div>
+    <div id="hint">&#9664; POWER</div>
+  </div>
+  <div class="bezel">
+    <div class="btop"><i id="led"></i><span>DOT MATRIX &middot; DIRECTORATE ISSUE</span><span class="line"></span></div>
+    <div class="screen"><canvas id="c" width="256" height="256"></canvas></div>
+  </div>
+  <div class="logo">DOPE&nbsp;SHOW<span>HUSTLE&nbsp;SYSTEM</span></div>
+  <div class="controls">
+    <div class="pad-area">
+    <div id="dpad"><div class="h"></div><div class="v"></div><div class="hub"></div><i class="au"></i><i class="ad"></i><i class="al"></i><i class="ar"></i></div>
+    <div class="ab"><button class="btn" id="bB" aria-label="B"></button><button class="btn" id="bA" aria-label="A"></button><span class="lbl b">B</span><span class="lbl a">A</span></div>
+    </div>
+    <div class="grille"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="badge">PROPERTY OF THE <b>DIRECTORATE</b></div>
+  </div>
+</div>
 <script>
 'use strict';
 /* ════════════════════════════════════════════════════════════════════
@@ -444,7 +527,7 @@ const SKULL = iconFrom(['.ooooo.', 'oWWWWWo', 'oWkWkWo', 'oWWWWWo', '.oWWWo.', '
 const CURSOR = iconFrom(['o....', 'ooo..', 'oWWo.', 'oWWWo', 'oWWo.', 'ooo..', 'o....'], { o:K.out, W:K.white });
 
 // ───────────────────────── Game state ─────────────────────────
-let G, state = 'title', T = 0, last = performance.now();
+let G, state = 'off', T = 0, bootT = 0, last = performance.now();
 const dust = [], ash = Array.from({ length:42 }, (_, i) => ({ x:hash(i, 1)*SZ, y:hash(i, 2)*SZ, vy:5 + hash(i, 3)*9, vx:3 + hash(i, 4)*5, big:hash(i, 5) < .25 }));
 
 function newGame() {
@@ -487,22 +570,54 @@ function spawnBuyer() {
   G.buyers.push({ e, t, drug:d, price:Math.round(avg * rnd(1.5, 2.1)), life:rnd(18, 28) });
 }
 
-// ───────────────────────── Input ─────────────────────────
-const keys = {}; let pointer = null;
-addEventListener('keydown', ev => {
-  if (keys[ev.code]) { if (/Arrow|Space/.test(ev.code)) ev.preventDefault(); return; }
-  keys[ev.code] = true;
-  if (/Arrow|Space/.test(ev.code)) ev.preventDefault();
-  if (state === 'title' || state === 'over') { if (ev.code === 'Enter' || ev.code === 'Space') start(); return; }
-  if (state === 'play') {
-    if (ev.code === 'Space') dash();
-    if (ev.code === 'KeyE' || ev.code === 'Enter') tryEnter();
-  } else if (state === 'market') marketKey(ev);
-});
-addEventListener('keyup', ev => keys[ev.code] = false);
+// ───────────────────────── Input: D-pad + A/B only ─────────────────────────
+// Keyboard: arrows/WASD = D-pad, Z/Enter = A, X/Space = B.
+const held = { up:0, down:0, left:0, right:0 }, holdT = { up:0, down:0 }; let pointer = null;
+const KEYMAP = { ArrowUp:'up', KeyW:'up', ArrowDown:'down', KeyS:'down', ArrowLeft:'left', KeyA:'left', ArrowRight:'right', KeyD:'right',
+                 KeyZ:'a', KeyK:'a', Enter:'a', KeyX:'b', KeyJ:'b', Space:'b' };
+const buzz = () => { try { navigator.vibrate && navigator.vibrate(8); } catch (e) {} };
+function btnDown(b) {
+  if (b in held) { if (held[b]) return; held[b] = 1; if (b in holdT) holdT[b] = 0; }
+  press(b);
+}
+function btnUp(b) { if (b in held) held[b] = 0; }
+function press(b) {
+  if (state === 'off' || state === 'boot') return;
+  if (state === 'title' || state === 'over') { if (b === 'a') start(); return; }
+  if (state === 'play') { if (b === 'a') tryEnter(); else if (b === 'b') dash(); }
+  else if (state === 'market') marketBtn(b);
+}
+addEventListener('keydown', ev => { const b = KEYMAP[ev.code]; if (!b) return; ev.preventDefault(); if (!ev.repeat) btnDown(b); });
+addEventListener('keyup', ev => { const b = KEYMAP[ev.code]; if (b) btnUp(b); });
+addEventListener('blur', () => { for (const k in held) held[k] = 0; });
+
+// on-shell D-pad: 8-way for running, 4-way (dominant axis) inside menus
+const dpadEl = document.getElementById('dpad'); let dpadId = null;
+function dpadSet(ev) {
+  const r = dpadEl.getBoundingClientRect(), dx = ev.clientX - (r.left + r.width/2), dy = ev.clientY - (r.top + r.height/2), dead = r.width * .1;
+  const ax = Math.abs(dx), ay = Math.abs(dy), four = state !== 'play', inside = Math.max(ax, ay) > dead;
+  const want = four
+    ? { up:inside && ay >= ax && dy < 0, down:inside && ay >= ax && dy > 0, left:inside && ax > ay && dx < 0, right:inside && ax > ay && dx > 0 }
+    : { up:inside && dy < 0 && ay > ax*.45, down:inside && dy > 0 && ay > ax*.45, left:inside && dx < 0 && ax > ay*.45, right:inside && dx > 0 && ax > ay*.45 };
+  for (const k in want) { if (want[k] && !held[k]) { btnDown(k); buzz(); } else if (!want[k] && held[k]) btnUp(k); }
+  dpadEl.className = Object.keys(want).filter(k => want[k]).join(' ');
+}
+function dpadEnd() { dpadId = null; for (const k in held) btnUp(k); dpadEl.className = ''; }
+dpadEl.addEventListener('pointerdown', ev => { ev.preventDefault(); dpadId = ev.pointerId; dpadEl.setPointerCapture(ev.pointerId); dpadSet(ev); });
+dpadEl.addEventListener('pointermove', ev => { if (ev.pointerId === dpadId) dpadSet(ev); });
+dpadEl.addEventListener('pointerup', dpadEnd); dpadEl.addEventListener('pointercancel', dpadEnd);
+for (const [id, b] of [['bA', 'a'], ['bB', 'b']]) {
+  const el = document.getElementById(id);
+  el.addEventListener('pointerdown', ev => { ev.preventDefault(); el.classList.add('pressed'); buzz(); btnDown(b); });
+  const up = () => el.classList.remove('pressed');
+  el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('pointerleave', up);
+}
+document.addEventListener('contextmenu', ev => ev.preventDefault());
+
+// tapping the screen still works: on-screen buttons, or hold to steer toward a point
 function toBuf(ev) { const r = cv.getBoundingClientRect(); return { x:(ev.clientX - r.left) / r.width * SZ, y:(ev.clientY - r.top) / r.height * SZ }; }
 cv.addEventListener('pointerdown', ev => {
-  const b = toBuf(ev);
+  ev.preventDefault(); const b = toBuf(ev);
   for (let i = ui.hits.length - 1; i >= 0; i--) { const h = ui.hits[i]; if (b.x >= h.x && b.x < h.x + h.w && b.y >= h.y && b.y < h.y + h.h) { h.fn(); return; } }
   if (state === 'play') { pointer = { x:b.x / S, y:(b.y - OY) / S }; cv.setPointerCapture(ev.pointerId); }
 });
@@ -510,7 +625,7 @@ cv.addEventListener('pointermove', ev => { if (pointer) { const b = toBuf(ev); p
 cv.addEventListener('pointerup', () => pointer = null);
 cv.addEventListener('pointercancel', () => pointer = null);
 function getInput() {
-  let x = (keys.ArrowRight || keys.KeyD ? 1 : 0) - (keys.ArrowLeft || keys.KeyA ? 1 : 0), y = (keys.ArrowDown || keys.KeyS ? 1 : 0) - (keys.ArrowUp || keys.KeyW ? 1 : 0);
+  let x = held.right - held.left, y = held.down - held.up;
   if (!x && !y && pointer) { const pp = edgePos(G.p.e, G.p.t), dx = pointer.x - pp.x, dy = pointer.y - pp.y, d = Math.hypot(dx, dy); if (d > 22) { x = dx/d; y = dy/d; } }
   const m = Math.hypot(x, y); return m ? { x:x/m, y:y/m } : { x:0, y:0 };
 }
@@ -597,7 +712,8 @@ function update(dt) {
 let marketNode = -1, sel = 0;
 function tryEnter() { const n = playerNode(); if (n >= 0) { marketNode = n; sel = 0; state = 'market'; pointer = null; } }
 function closeMarket() { state = 'play'; last = performance.now(); }
-const rowCount = () => 6 + (nodes[marketNode].hub ? 4 : 0);
+const rowCount = () => 6 + (nodes[marketNode].hub ? 4 : 0) + 1;      // last row is LEAVE
+const leaveRow = () => rowCount() - 1;
 function buy(i, q) {
   const price = G.prices[marketNode][i], n = Math.min(q === 'max' ? Infinity : q, Math.floor(G.cash / price), CAPACITY - used());
   if (n > 0) { G.cost[i] = (G.cost[i]*G.inv[i] + price*n) / (G.inv[i] + n); G.inv[i] += n; G.cash -= n*price; }
@@ -609,14 +725,16 @@ const ACTIONS = [
   { label:() => 'BORROW $1,000', on:() => G.day < TOTAL_DAYS,         run:() => { G.cash += 1000; G.debt += 1000; }, info:() => '+8%/DAY' },
   { label:() => 'CLINIC $400',   on:() => G.cash >= 400 && G.health < 100, run:() => { G.cash -= 400; G.health = 100; }, info:() => 'HEALTH ' + Math.round(G.health) + '%' },
 ];
-function marketKey(ev) {
-  const c = ev.code, shift = ev.shiftKey;
-  if (c === 'Escape' || c === 'KeyE' || c === 'Backspace') return closeMarket();
-  if (c === 'ArrowUp' || c === 'KeyW') sel = (sel + rowCount() - 1) % rowCount();
-  else if (c === 'ArrowDown' || c === 'KeyS') sel = (sel + 1) % rowCount();
-  else if (sel < 6 && (c === 'ArrowRight' || c === 'KeyD')) buy(sel, shift ? 'max' : 1);
-  else if (sel < 6 && (c === 'ArrowLeft' || c === 'KeyA')) sell(sel, shift ? 'all' : 1);
-  else if (sel >= 6 && (c === 'Enter' || c === 'Space')) { const a = ACTIONS[sel - 6]; if (a.on()) a.run(); }
+// D-pad up/down: pick a row.  Goods: A buy 1, B sell 1, right buy max, left sell all.
+// Bureau rows: A run, B leave.  LEAVE row: A or B.
+function marketBtn(b) {
+  const n = rowCount();
+  if (b === 'up') sel = (sel + n - 1) % n;
+  else if (b === 'down') sel = (sel + 1) % n;
+  else if (sel < 6) { if (b === 'a') buy(sel, 1); else if (b === 'b') sell(sel, 1); else if (b === 'right') buy(sel, 'max'); else if (b === 'left') sell(sel, 'all'); }
+  else if (sel === leaveRow()) { if (b === 'a' || b === 'b') closeMarket(); }
+  else if (b === 'a') { const a = ACTIONS[sel - 6]; if (a.on()) a.run(); }
+  else if (b === 'b') closeMarket();
 }
 
 // ───────────────────────── Game flow ─────────────────────────
@@ -701,7 +819,7 @@ function drawHUD() {
   // enter prompt
   const n = playerNode();
   if (state === 'play' && n >= 0) {
-    const pp = edgePos(G.p.e, G.p.t), fx = wx(pp.x), fy = wy(pp.y), label = 'E: ENTER ' + nodes[n].name, w = label.length*6 + 8, x = Math.max(2, Math.min(SZ - w - 2, fx - (w >> 1))), y = fy - 32 - (Math.floor(T*3) % 2);
+    const pp = edgePos(G.p.e, G.p.t), fx = wx(pp.x), fy = wy(pp.y), label = 'A: ENTER ' + nodes[n].name, w = label.length*6 + 8, x = Math.max(2, Math.min(SZ - w - 2, fx - (w >> 1))), y = fy - 32 - (Math.floor(T*3) % 2);
     button(x, y, label, tryEnter, true, C(30,26,10));
   }
   // message window with typewriter text
@@ -725,9 +843,9 @@ function drawMarket() {
   text('GOODS', 26, 47, K.dim); text('PRICE', 106, 47, K.dim, { align:'r' }); text('OWN', 134, 47, K.dim, { align:'r' });
   const rows = rowCount();
   for (let r = 0; r < rows; r++) {
-    const y = 56 + r*16;
-    ui.hits.push({ x:10, y, w:236, h:15, fn:() => sel = r });
-    if (sel === r) { ctx.fillStyle = C(5,5,15); ctx.fillRect(10, y - 1, 236, 14); ctx.drawImage(CURSOR, 12 + (Math.floor(T*4) % 2), y + 1); }
+    const rh = nd.hub ? 14 : 16, y = 56 + r*rh;
+    ui.hits.push({ x:10, y, w:236, h:rh - 1, fn:() => sel = r });
+    if (sel === r) { ctx.fillStyle = C(5,5,15); ctx.fillRect(10, y - 1, 236, rh - 2); ctx.drawImage(CURSOR, 12 + (Math.floor(T*4) % 2), y + 1); }
     if (r < 6) {
       const d = DRUGS[r], avg = (d.min + d.max)/2, cheap = pr[r] < avg*.7, dear = pr[r] > avg*1.3, maxBuy = Math.min(Math.floor(G.cash / pr[r]), CAPACITY - used());
       text(d.name, 26, y + 2, d.color); text(money(pr[r]), 106, y + 2, cheap ? C(10,31,14) : dear ? C(31,10,10) : K.white, { align:'r' });
@@ -737,15 +855,17 @@ function drawMarket() {
       bx += button(bx, by, 'ALL', () => { sel = r; sell(r, 'all'); }, G.inv[r] > 0) + 2;
       bx += button(bx, by, '+', () => { sel = r; buy(r, 1); }, maxBuy > 0) + 2;
       button(bx, by, 'MAX', () => { sel = r; buy(r, 'max'); }, maxBuy > 0);
+    } else if (r === leaveRow()) {
+      ui.hits.push({ x:10, y, w:236, h:rh - 1, fn:closeMarket });
+      text('LEAVE', 26, y + 2, C(30,26,10)); text('BACK TO THE STREETS', 240, y + 2, K.dim, { align:'r' });
     } else {
-      const a = ACTIONS[r - 6], en = a.on(); ui.hits.push({ x:10, y, w:236, h:15, fn:() => { sel = r; if (a.on()) a.run(); } });
+      const a = ACTIONS[r - 6], en = a.on(); ui.hits.push({ x:10, y, w:236, h:rh - 1, fn:() => { sel = r; if (a.on()) a.run(); } });
       text(a.label(), 26, y + 2, en ? K.white : K.dim); text(a.info(), 240, y + 2, K.dim, { align:'r' });
     }
   }
-  if (sel < 6 && G.inv[sel]) text(`AVG PAID ${money(G.cost[sel])}  NOW ${money(pr[sel])}`, 14, 214, K.dim);
-  if (nd.hub) text('CREDIT BUREAU: THE DIRECTORATE ALWAYS COLLECTS', 14, 224, C(20,10,10), { shadow:false });
-  button(180, 233, 'LEAVE [E]', closeMarket, true, C(30,26,10));
-  text('ARROWS TRADE  SHIFT=ALL', 14, 235, K.dim);
+  if (sel < 6 && G.inv[sel]) text(`AVG PAID ${money(G.cost[sel])}  NOW ${money(pr[sel])}`, 14, 216, K.dim);
+  else if (nd.hub) text('THE DIRECTORATE ALWAYS COLLECTS.', 14, 216, C(20,10,10), { shadow:false });
+  text(sel < 6 ? 'A BUY  B SELL  > MAX  < ALL' : sel === leaveRow() ? 'A/B LEAVE' : 'A CONFIRM  B LEAVE', 128, 230, C(30,26,10), { align:'c' });
 }
 
 function drawTitle() {
@@ -755,22 +875,55 @@ function drawTitle() {
   text('DOPE SHOW', 128, 24 + wob, C(31,22,6), { align:'c', scale:3, shadow:false });
   text('A TALE OF THE DIRECTORATE', 128, 54, C(18,18,24), { align:'c' });
   win(10, 70, 236, 118);
-  const L = ['THE DIRECTORATE OWNS THE CITY.', 'YOU OWE THE DIRECTORATE.', '30 DAYS TO PAY OR BE ERASED.', '', 'WASD/ARROWS  RUN THE ROADS', 'E  ENTER A TOWER     SPACE  DASH', 'SELL TO BUYERS  M $1,200', 'DODGE ENFORCERS AND SYNDICATE'];
+  const L = ['THE DIRECTORATE OWNS THE CITY.', 'YOU OWE THE DIRECTORATE.', '30 DAYS TO PAY OR BE ERASED.', '', 'D-PAD  RUN THE ROADS', 'A  ENTER A TOWER     B  DASH', 'SELL TO BUYERS  M $1,200', 'DODGE ENFORCERS AND SYNDICATE'];
   L.forEach((l, i) => text(l, 128, 80 + i*12, i < 3 ? K.white : K.dim, { align:'c' }));
-  if (Math.floor(T*2) % 2) text('PRESS ENTER', 128, 198, K.white, { align:'c' });
+  if (Math.floor(T*2) % 2) text('PRESS A', 128, 198, K.white, { align:'c' });
   button(100, 212, ' START ', start, true, C(30,26,10));
   let best = 0; try { best = +localStorage.getItem('dopeshow-best') || 0; } catch (e) {}
   if (best) text('BEST ' + money(best), 128, 236, C(30,26,10), { align:'c' });
 }
 function drawOver() {
-  ctx.drawImage(DITHER, 0, 0); win(24, 70, 208, 112);
+  ctx.drawImage(DITHER, 0, 0); win(24, 70, 208, 126);
   const dead = G.health <= 0;
   text(dead ? 'DETAINED' : 'TIME UP', 128, 80, C(31,10,10), { align:'c', scale:2 });
   text(G.over.reason, 128, 100, K.dim, { align:'c' });
   text(`CASH ${money(G.cash)}`, 128, 116, K.white, { align:'c' }); text(`DEBT ${money(G.debt)}`, 128, 127, C(31,12,12), { align:'c' });
   text(`SCORE ${money(G.over.score)}`, 128, 141, G.over.score >= 0 ? C(10,31,14) : C(31,10,10), { align:'c' });
   if (G.over.best) text('NEW BEST!', 128, 153, C(30,26,10), { align:'c' });
-  button(96, 165, ' TRY AGAIN ', start, true, C(30,26,10));
+  if (Math.floor(T*2) % 2) text('PRESS A', 128, 170, K.white, { align:'c' });
+  button(96, 180, ' TRY AGAIN ', start, true, C(30,26,10));
+}
+
+// ───────────────────────── Power ─────────────────────────
+const gbEl = document.getElementById('gb'); let audio = null;
+function chime() {
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    const t = audio.currentTime;
+    [[1046.5, 0], [2093, .09]].forEach(([f, d]) => {
+      const o = audio.createOscillator(), g = audio.createGain(); o.type = 'square'; o.frequency.value = f;
+      g.gain.setValueAtTime(.0001, t + d); g.gain.exponentialRampToValueAtTime(.08, t + d + .01); g.gain.exponentialRampToValueAtTime(.0001, t + d + .5);
+      o.connect(g).connect(audio.destination); o.start(t + d); o.stop(t + d + .55);
+    });
+  } catch (e) {}
+}
+function setPower(on) {
+  gbEl.classList.toggle('on', on); buzz();
+  for (const k in held) held[k] = 0; pointer = null;
+  if (on) { newGame(); state = 'boot'; bootT = 0; chime.done = false; try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch (e) {} }
+  else state = 'off';
+}
+document.getElementById('power').addEventListener('click', () => setPower(state === 'off'));
+function drawBoot(dt) {
+  bootT += dt;
+  ctx.fillStyle = K.winFill; ctx.fillRect(0, 0, SZ, SZ);
+  const y = Math.min(108, -20 + bootT * 110);
+  text('DIRECTORATE', 128, y, C(31,22,6), { align:'c', scale:2, shadow:C(12,2,4) });
+  if (y >= 108) {
+    if (!chime.done) { chime.done = true; chime(); }
+    text('ISSUE NO. 30', 128, y + 22, K.dim, { align:'c' });
+  }
+  if (bootT > 2.6) state = 'title';
 }
 
 // ───────────────────────── Loop ─────────────────────────
@@ -779,6 +932,9 @@ function frame(now) {
   if (state === 'play') { update(dt); for (let i = dust.length - 1; i >= 0; i--) { dust[i].life -= dt; if (dust[i].life <= 0) dust.splice(i, 1); } }
   G.msg.t += dt;
   for (const a of ash) { a.y += a.vy*dt; a.x += a.vx*dt; if (a.y > SZ) { a.y = 0; a.x = Math.random()*SZ; } if (a.x > SZ) a.x = 0; }
+  if (state === 'off') { requestAnimationFrame(frame); return; }
+  if (state === 'boot') { drawBoot(dt); requestAnimationFrame(frame); return; }
+  if (state === 'market') for (const k of ['up', 'down']) if (held[k]) { holdT[k] += dt; if (holdT[k] > .35) { holdT[k] -= .09; marketBtn(k); } }
   ctx.clearRect(0, 0, SZ, SZ); drawWorld();
   if (state === 'play') drawHUD();
   else if (state === 'market') drawMarket();
@@ -786,11 +942,6 @@ function frame(now) {
   else if (state === 'over') { drawHUD(); drawOver(); }
   requestAnimationFrame(frame);
 }
-function fit() {
-  const m = Math.min(innerWidth, innerHeight), size = m < 512 ? m : SZ * Math.floor(m / SZ);
-  cv.style.width = cv.style.height = size + 'px';
-}
-addEventListener('resize', fit); fit();
 newGame();
 requestAnimationFrame(frame);
 </script>
