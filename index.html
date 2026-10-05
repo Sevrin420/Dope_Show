@@ -752,7 +752,7 @@ function spawnBuyer() {
 
 // ───────────────────────── Input: D-pad + A/B only ─────────────────────────
 // Keyboard: arrows/WASD = D-pad, Z/Enter = A, X/Space = B.
-const held = { up:0, down:0, left:0, right:0 }, holdT = { up:0, down:0 }; let pointer = null;
+const held = { up:0, down:0, left:0, right:0 }, holdT = { up:0, down:0, left:0, right:0 }; let pointer = null;
 const KEYMAP = { ArrowUp:'up', KeyW:'up', ArrowDown:'down', KeyS:'down', ArrowLeft:'left', KeyA:'left', ArrowRight:'right', KeyD:'right',
                  KeyZ:'a', KeyK:'a', Enter:'a', KeyX:'b', KeyJ:'b', Space:'b' };
 const buzz = () => { try { navigator.vibrate && navigator.vibrate(8); } catch (e) {} };
@@ -819,7 +819,7 @@ function nearDoor() { const p = G.p; if (p.z > 1) return -1; for (const d of DOO
 function grounded() { return G.p.vz === 0 && G.p.z === surfaceAt(G.p.x, G.p.y); }
 function pressA() {
   const n = nearDoor();
-  if (n >= 0) { marketNode = n; sel = 0; state = 'market'; pointer = null; return; }
+  if (n >= 0) { marketNode = n; sel = 0; deal = null; toast = null; state = 'market'; pointer = null; return; }
   if (grounded()) { G.p.vz = JUMP_V; puff(G.p.x, G.p.y, 3); }
 }
 function dash() { const p = G.p; if (p.cd <= 0) { p.dash = DASH_TIME; p.cd = DASH_CD; p.inv = Math.max(p.inv, DASH_TIME + .2); } }
@@ -927,20 +927,22 @@ function update(dt) {
 }
 
 // ───────────────────────── Market ─────────────────────────
-let marketNode = -1, sel = 0;
-function closeMarket() { state = 'play'; last = performance.now(); }
+let marketNode = -1, sel = 0, deal = null, toast = null;          // deal: the open BUY/SELL quantity box
+function closeMarket() { state = 'play'; deal = null; toast = null; last = performance.now(); }
 const rowCount = () => 6 + (nodes[marketNode].hub ? 4 : 0) + 1;      // last row is LEAVE
 const leaveRow = () => rowCount() - 1;
 function buy(i, q) {
   const price = G.prices[marketNode][i], n = Math.min(q === 'max' ? Infinity : q, Math.floor(G.cash / price), CAPACITY - used());
-  if (n <= 0) return;
+  if (n <= 0) return 0;
   G.cost[i] = (G.cost[i]*G.inv[i] + price*n) / (G.inv[i] + n); G.inv[i] += n; G.cash -= n*price;
   G.prices[marketNode][i] = Math.max(1, Math.round(price * Math.pow(1 + IMPACT, n)));          // you pushed the price up
+  return n;
 }
 function sell(i, q) {
-  const n = Math.min(q === 'all' ? Infinity : q, G.inv[i]); if (n <= 0) return;
+  const n = Math.min(q === 'all' ? Infinity : q, G.inv[i]); if (n <= 0) return 0;
   G.cash += n * bid(marketNode, i); G.inv[i] -= n; if (!G.inv[i]) G.cost[i] = 0;
   G.prices[marketNode][i] = Math.max(1, Math.round(G.prices[marketNode][i] * Math.pow(1 - IMPACT, n)));   // and down
+  return n;
 }
 const ACTIONS = [
   { label:() => 'PAY $1,000',    on:() => G.cash >= 1 && G.debt >= 1, run:() => { const a = Math.min(G.cash, G.debt, 1000); G.cash -= a; G.debt -= a; }, info:() => 'DEBT ' + money(G.debt) },
@@ -948,12 +950,31 @@ const ACTIONS = [
   { label:() => 'BORROW $1,000', on:() => G.day < TOTAL_DAYS,         run:() => { G.cash += 1000; G.debt += 1000; }, info:() => '+' + Math.round(INTEREST*100) + '%/DAY' },
   { label:() => 'CLINIC ' + money(CLINIC), on:() => G.cash >= CLINIC && G.health < 100, run:() => { G.cash -= CLINIC; G.health = 100; }, info:() => 'HEALTH ' + Math.round(G.health) + '%' },
 ];
-// D-pad up/down: pick a row.  Goods: A buy 1, B sell 1, right buy max, left sell all.
+// Nothing changes hands without a confirm: A (or right) opens a BUY box, B (or left) a SELL box.
+// In the box: left/right -/+1, down/up -/+5, A confirms, B backs out.
+const dealMax = (kind, i) => kind === 'buy' ? Math.min(Math.floor(G.cash / G.prices[marketNode][i]), CAPACITY - used()) : G.inv[i];
+function openDeal(kind, i) {
+  const m = dealMax(kind, i);
+  if (m < 1) { toast = { text:kind === 'sell' ? 'YOU HAVE NONE TO SELL' : used() >= CAPACITY ? 'YOUR PACK IS FULL' : "YOU CAN'T AFFORD ANY", t:2.2, bad:true }; return; }
+  deal = { kind, i, qty:kind === 'buy' ? 1 : m };
+}
+function confirmDeal() {
+  const { kind, i } = deal, d = DRUGS[i], qty = Math.min(deal.qty, dealMax(kind, i));
+  if (kind === 'buy') { const price = G.prices[marketNode][i], n = buy(i, qty); toast = { text:`BOUGHT ${n} ${d.name}  -${money(n*price)}`, t:2.5 }; }
+  else { const b = bid(marketNode, i), n = sell(i, qty); toast = { text:`SOLD ${n} ${d.name}  +${money(n*b)}`, t:2.5 }; }
+  deal = null;
+}
+function dealAdjust(by) { if (deal) deal.qty = clamp(deal.qty + by, 1, Math.max(1, dealMax(deal.kind, deal.i))); }
 function marketBtn(b) {
+  if (deal) {
+    if (b === 'left') dealAdjust(-1); else if (b === 'right') dealAdjust(1); else if (b === 'up') dealAdjust(5); else if (b === 'down') dealAdjust(-5);
+    else if (b === 'a') confirmDeal(); else if (b === 'b') deal = null;
+    return;
+  }
   const n = rowCount();
   if (b === 'up') sel = (sel + n - 1) % n;
   else if (b === 'down') sel = (sel + 1) % n;
-  else if (sel < 6) { if (b === 'a') buy(sel, 1); else if (b === 'b') sell(sel, 1); else if (b === 'right') buy(sel, 'max'); else if (b === 'left') sell(sel, 'all'); }
+  else if (sel < 6) { if (b === 'a' || b === 'right') openDeal('buy', sel); else if (b === 'b' || b === 'left') openDeal('sell', sel); }
   else if (sel === leaveRow()) { if (b === 'a' || b === 'b') closeMarket(); }
   else if (b === 'a') { const a = ACTIONS[sel - 6]; if (a.on()) a.run(); }
   else if (b === 'b') closeMarket();
@@ -1101,11 +1122,8 @@ function drawMarket() {
       text(money(pr[r]), 88, y + 2, cheap ? C(10,31,14) : dear ? C(31,10,10) : K.white, { align:'r' });
       text(money(bid(marketNode, r)), 132, y + 2, G.inv[r] && bid(marketNode, r) > G.cost[r] ? C(10,31,14) : K.dim, { align:'r' });
       text(G.inv[r], 152, y + 2, G.inv[r] ? K.white : K.dim, { align:'r' });
-      let bx = 156;
-      bx += button(bx, y, '-', () => { sel = r; sell(r, 1); }, G.inv[r] > 0) + 1;
-      bx += button(bx, y, 'ALL', () => { sel = r; sell(r, 'all'); }, G.inv[r] > 0) + 1;
-      bx += button(bx, y, '+', () => { sel = r; buy(r, 1); }, maxBuy > 0) + 1;
-      button(bx, y, 'MAX', () => { sel = r; buy(r, 'max'); }, maxBuy > 0);
+      const bx = 164 + button(164, y, 'SELL', () => { sel = r; openDeal('sell', r); }, G.inv[r] > 0) + 2;
+      button(bx, y, 'BUY', () => { sel = r; openDeal('buy', r); }, maxBuy > 0);
     } else if (r === leaveRow()) {
       ui.hits.push({ x:8, y, w:240, h:rh - 1, fn:closeMarket });
       text('LEAVE', 18, y + 2, C(30,26,10)); text('BACK TO THE STREETS', 244, y + 2, K.dim, { align:'r' });
@@ -1114,9 +1132,34 @@ function drawMarket() {
       text(a.label(), 18, y + 2, en ? K.white : K.dim); text(a.info(), 244, y + 2, K.dim, { align:'r' });
     }
   }
-  if (sel < 6 && G.inv[sel]) text(`YOU PAID ${money(G.cost[sel])} AVG`, 10, 220, K.dim);
+  if (toast) text(toast.text, 128, 220, toast.bad ? C(31,10,10) : C(10,31,14), { align:'c' });
+  else if (sel < 6 && G.inv[sel]) text(`YOU PAID ${money(G.cost[sel])} AVG`, 10, 220, K.dim);
   else text('SELL PAYS 82%. BIG ORDERS MOVE PRICES', 10, 220, C(18,12,14), { shadow:false });
-  text(sel < 6 ? 'A BUY  B SELL  > MAX  < ALL' : sel === leaveRow() ? 'A/B LEAVE' : 'A CONFIRM  B LEAVE', 128, 234, C(30,26,10), { align:'c' });
+  text(sel < 6 ? 'A BUY...   B SELL...' : sel === leaveRow() ? 'A/B LEAVE' : 'A CONFIRM  B LEAVE', 128, 234, C(30,26,10), { align:'c' });
+  if (deal) drawDeal(pr);
+}
+// the BUY / SELL quantity box
+function drawDeal(pr) {
+  const { kind, i } = deal, d = DRUGS[i], buying = kind === 'buy', each = buying ? pr[i] : bid(marketNode, i), m = Math.max(1, dealMax(kind, i));
+  deal.qty = clamp(deal.qty, 1, m);
+  const q = deal.qty, total = q * each, x = 26, y = 66, w = 204, h = 128;
+  ui.hits.push({ x:0, y:0, w:SZ, h:SZ, fn:() => {} });                  // the box is modal
+  win(x, y, w, h);
+  text(`${buying ? 'BUY' : 'SELL'} ${d.name}`, 128, y + 8, d.color, { align:'c' });
+  text(`${money(each)} EACH`, 128, y + 19, K.dim, { align:'c' });
+  const arrowL = q > 1, arrowR = q < m;
+  text('<', 92, y + 35, arrowL ? K.white : K.dim, { scale:2 }); text('>', 154, y + 35, arrowR ? K.white : K.dim, { scale:2 });
+  text(String(q), 128, y + 35, K.white, { align:'c', scale:2 });
+  let bx = 46;
+  bx += button(bx, y + 54, '-5', () => dealAdjust(-5), q > 1) + 3;
+  bx += button(bx, y + 54, '-1', () => dealAdjust(-1), q > 1) + 3;
+  bx += button(bx, y + 54, '+1', () => dealAdjust(1), q < m) + 3;
+  bx += button(bx, y + 54, '+5', () => dealAdjust(5), q < m) + 3;
+  button(bx, y + 54, buying ? 'MAX' : 'ALL', () => { deal.qty = m; }, q < m);
+  text(`TOTAL ${buying ? '-' : '+'}${money(total)}`, 128, y + 72, buying ? C(31,14,12) : C(10,31,14), { align:'c' });
+  text(`CASH AFTER ${money(G.cash + (buying ? -total : total))}`, 128, y + 83, K.dim, { align:'c' });
+  button(62, y + 98, ' A: OK ', confirmDeal, true, C(30,26,10));
+  button(136, y + 98, ' B: BACK ', () => { deal = null; }, true);
 }
 
 function drawTitle() {
@@ -1189,7 +1232,10 @@ function frame(now) {
   for (let i = splash.length - 1; i >= 0; i--) { splash[i].life -= dt; if (splash[i].life <= 0) splash.splice(i, 1); }
   if (state === 'off') { requestAnimationFrame(frame); return; }
   if (state === 'boot') { drawBoot(dt); requestAnimationFrame(frame); return; }
-  if (state === 'market') for (const k of ['up', 'down']) if (held[k]) { holdT[k] += dt; if (holdT[k] > .35) { holdT[k] -= .09; marketBtn(k); } }
+  if (state === 'market') {
+    for (const k of deal ? ['up', 'down', 'left', 'right'] : ['up', 'down']) if (held[k]) { holdT[k] += dt; if (holdT[k] > .35) { holdT[k] -= .09; marketBtn(k); } }
+    if (toast && (toast.t -= dt) <= 0) toast = null;
+  }
   ctx.clearRect(0, 0, SZ, SZ); drawWorld();
   if (state === 'play') drawHUD();
   else if (state === 'market') drawMarket();
