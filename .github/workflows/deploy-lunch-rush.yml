@@ -1,0 +1,64 @@
+name: Deploy Lunch Rush
+
+# Ships lunch-rush/ to the VPS and reloads Caddy as the restricted `deploy`
+# user (not root). Requires approval in the `vps` environment.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref containing lunch-rush/'
+        required: false
+        default: 'ccr-b2dbb274-5javdt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-lunch-rush
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: vps
+    env:
+      DOMAIN: lunch-rush.membersonly.cc
+      WEBROOT: /var/www/lunch-rush
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref }}
+
+      - name: Rewrite card URLs to the live domain
+        run: |
+          sed -i "s#https://YOUR-APP.vercel.app/lunch-rush#https://${DOMAIN}#g" lunch-rush/index.html
+          if grep -q "YOUR-APP.vercel.app" lunch-rush/index.html; then
+            echo "::error::placeholder URLs still present after rewrite"
+            exit 1
+          fi
+          echo "card URLs -> https://${DOMAIN}"
+
+      - name: Set up SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_HOST_KEY: ${{ secrets.VPS_HOST_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s %s\n' "$VPS_HOST" "$VPS_HOST_KEY" > ~/.ssh/known_hosts
+
+      - name: Sync to VPS and reload Caddy
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          SSH="ssh -i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
+          rsync -az --delete --chmod=D755,F644 -e "$SSH" \
+            lunch-rush/ "$DEPLOY_USER@$VPS_HOST:$WEBROOT/"
+          $SSH "$DEPLOY_USER@$VPS_HOST" "sudo -n /bin/systemctl reload caddy && echo deployed $WEBROOT"
+
+      - name: Remove key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
