@@ -85,30 +85,31 @@
     <div id="hint">&#9664; POWER</div>
   </div>
   <div class="bezel">
-    <div class="btop"><i id="led"></i><span>COLOR DOT MATRIX &middot; SUMMER EDITION</span><span class="line"></span></div>
+    <div class="btop"><i id="led"></i><span>COLOR DOT MATRIX &middot; HIGH SCHOOL EDITION</span><span class="line"></span></div>
     <div class="screen"><canvas id="c" width="256" height="256"></canvas></div>
   </div>
-  <div class="logo">CANDY&nbsp;RUSH<span>SUMMER&nbsp;EDITION</span></div>
+  <div class="logo">CANDY&nbsp;RUSH<span>HIGH&nbsp;SCHOOL</span></div>
   <div class="controls">
     <div class="pad-area">
     <div id="dpad"><div class="h"></div><div class="v"></div><div class="hub"></div><i class="au"></i><i class="ad"></i><i class="al"></i><i class="ar"></i></div>
     <div class="ab"><button class="btn" id="bB" aria-label="B"></button><button class="btn" id="bA" aria-label="A"></button><span class="lbl b">B</span><span class="lbl a">A</span></div>
     </div>
     <div class="grille"><i></i><i></i><i></i><i></i><i></i><i></i></div>
-    <div class="badge">MADE WITH <b>100% SUGAR</b></div>
+    <div class="badge">NO RUNNING IN THE <b>HALLS</b></div>
   </div>
 </div>
 <script>
 'use strict';
 /* ════════════════════════════════════════════════════════════════════
-   CANDY RUSH: a cartoon summer candy hustle on a pocket console.
-   Buy candy at local stores, sell it to kids at the playground, arcade,
-   movies and skate park, dodge dogs, save up for a skateboard and a bike.
+   CANDY RUSH: a cartoon high school candy hustle on a pocket console.
+   Buy candy at the cafeteria, school store, vending machines and bake sale,
+   sell it to students in the gym, library, art room and science lab, hop
+   over tables to dodge hall monitors, and save up for a skateboard and a bike.
 
    Art rules, enforced in code: 256x256 buffer scaled with nearest-neighbour,
    15-bit colour (C()), top-left light with 3-tone ramps and an automatic dark
    outline on every sprite (Painter.render), 3/4 view with Y-sorted drawing,
-   and a per-pixel height map so you can jump up onto benches, fences and cars.
+   and a per-pixel height map so you can jump onto tables, desks and bleachers.
    ════════════════════════════════════════════════════════════════════ */
 
 // ───────────────────────── Game constants ─────────────────────────
@@ -148,18 +149,19 @@ const CANDY = [
   { name:'SOUR BLAST', key:'S', base:250, color:C(12,31,12) },
 ];
 // store price multipliers and hangout tastes (index = candy)
-const STORE_MULT = { 'CANDY SHOP':[1, .8, 1.05, .85], 'CORNER STORE':[.8, 1, 1, 1.1], 'SUPER MART':[.95, .95, .8, 1], 'GAS & GO':[1.15, 1.15, 1.1, 1.15] };
-const VENUE_MULT = { 'PLAYGROUND':[1.1, 1.35, 1, .8], 'ARCADE':[.9, 1, 1, 1.35], 'MOVIES':[.9, .9, 1.35, 1.1], 'SKATE PARK':[1.35, .85, 1, 1.15] };
+const STORE_MULT = { 'BAKE SALE':[1, .8, 1.05, .85], 'SCHOOL STORE':[.8, 1, 1, 1.1], 'CAFETERIA':[.95, .95, .8, 1], 'VENDING':[1.15, 1.15, 1.1, 1.15] };
+const VENUE_MULT = { 'LIBRARY':[1.1, 1.35, 1, .8], 'GYM':[.9, 1, 1, 1.35], 'SCIENCE LAB':[.9, .9, 1.35, 1.1], 'ART ROOM':[1.35, .85, 1, 1.15] };
 const UPGRADES = [
   { id:'sneakers', name:'SNEAKERS',     price:1000,   desc:'RUN FASTER' },
   { id:'backpack', name:'BIG BACKPACK', price:2500,  desc:'CARRY 15 MORE CANDY' },
   { id:'spring',   name:'SPRING SHOES', price:3000,  desc:'JUMP WAY HIGHER' },
-  { id:'skate',    name:'SKATEBOARD',   price:6000,  desc:'ROLL FAST, OLLIE DOGS' },
+  { id:'skate',    name:'SKATEBOARD',   price:6000,  desc:'ROLL FAST DOWN THE HALLS' },
   { id:'bike',     name:'BMX BIKE',     price:15000,  desc:'FASTER + BASKET (+10)' },
   { id:'scooter',  name:'GOLD SCOOTER', price:40000, desc:'FASTEST. A LEGEND.' },
 ];
-const TIPS = ['KIDS AT THE ARCADE LOVE SOUR BLASTS.', 'MOVIE-GOERS GO NUTS FOR CHOCO BARS.', 'SKATERS ALWAYS WANT GUMBALLS.', 'PLAYGROUND KIDS LOVE LOLLIPOPS.',
-              'SELL A LITTLE EVERYWHERE: KIDS PAY LESS AS YOU SELL MORE.', 'JUMP OVER FENCES AND BENCHES TO LOSE A DOG.', 'THE CANDY SHOP HAS CHEAP LOLLIPOPS.'];
+const TIPS = ['JOCKS IN THE GYM LOVE SOUR BLASTS.', 'THE SCIENCE LAB RUNS ON CHOCO BARS.', 'ART KIDS ALWAYS WANT GUMBALLS.', 'THE LIBRARY CROWD LOVES LOLLIPOPS.',
+              'SELL A LITTLE EVERYWHERE: STUDENTS PAY LESS AS YOU SELL MORE.', 'HOP OVER LUNCH TABLES AND DESKS TO LOSE A HALL MONITOR.', 'THE BAKE SALE HAS CHEAP LOLLIPOPS.',
+              'WITH SPRING SHOES YOU CAN JUMP ON TOP OF THE LOCKERS.'];
 
 // ───────────────────────── Utilities ─────────────────────────
 const rnd = (a, b) => a + Math.random()*(b-a);
@@ -228,7 +230,7 @@ const FONT_SRC = {
   '+':'..... ..#.. ..#.. ##### ..#.. ..#.. .....', ':':'..... .##.. .##.. ..... .##.. .##.. .....',
   '/':'....# ....# ...#. ..#.. .#... #.... #....', '%':'##..# ##..# ...#. ..#.. .#... #..## #..##',
   "'":'..#.. ..#.. .#... ..... ..... ..... .....', '[':'.###. .#... .#... .#... .#... .#... .###.',
-  ']':'.###. ...#. ...#. ...#. ...#. ...#. .###.', '>':'.#... ..#.. ...#. ....# ...#. ..#.. .#...', '<':'...#. ..#.. .#... #.... .#... ..#.. ...#.',
+  ']':'.###. ...#. ...#. ...#. ...#. ...#. .###.', '>':'.#... ..#.. ...#. ....# ...#. ..#.. .#...', '<':'...#. ..#.. .#... #.... .#... ..#.. ...#.', '&':'.##.. #..#. .##.. .#... #.#.# #..#. .##.#',
   '(':'...#. ..#.. .#... .#... .#... ..#.. ...#.', ')':'.#... ..#.. ...#. ...#. ...#. ..#.. .#...',
 };
 const FONT = {}; for (const k in FONT_SRC) FONT[k] = FONT_SRC[k].split(' ');
@@ -315,46 +317,24 @@ function buildKid(dir, f, o) {
   return p.render();
 }
 const KIDPALS = {
-  player: { skin:K.skin, hair:K.hairBrown, cap:K.red, shirt:K.yellow, shorts:K.denim, bag:K.blue, logo:K.red },
-  k1: { skin:K.skin2, hair:K.hairBlack, shirt:K.green, shorts:K.orange, pigtails:true, bag:K.pink },
-  k2: { skin:K.skin, hair:K.hairBlond, cap:K.blue, shirt:K.pink, shorts:K.denim, bag:K.yellow },
+  player: { skin:K.skin, hair:K.hairBrown, cap:K.red, shirt:K.teal, shorts:K.denim, bag:K.orange, logo:K.yellow },
+  k1: { skin:K.skin2, hair:K.hairBlack, shirt:K.green, shorts:K.denim, pigtails:true, bag:K.pink },
+  k2: { skin:K.skin, hair:K.hairBlond, cap:K.blue, shirt:K.pink, shorts:K.dark, bag:K.yellow, logo:K.white3 },
   k3: { skin:K.skin, hair:K.hairRed, shirt:K.purple, shorts:K.teal, pigtails:true, bag:K.green },
-  k4: { skin:K.skin2, hair:K.hairBlack, cap:K.green, shirt:K.orange, shorts:K.dark, bag:K.red },
+  k4: { skin:K.skin2, hair:K.hairBlack, cap:K.green, shirt:K.orange, shorts:K.denim, bag:K.red },
 };
 const SPR = {};
 for (const who in KIDPALS) { SPR[who] = {}; for (const d of ['down', 'up', 'side']) SPR[who][d] = [0, 1, 2, 3].map(f => buildKid(d, f, KIDPALS[who])); }
 const NPC_KIDS = ['k1', 'k2', 'k3', 'k4'];
 
-// ───────────────────────── Dogs (18x14) ─────────────────────────
-function buildDog(dir, f, o) {
-  const p = new Painter(18, 14), B = p.mat(o.fur), E = p.mat(o.ear), N = p.mat(K.black), Co = p.mat(K.red), Wh = p.mat(K.white), Sp = o.spot ? p.mat(o.spot) : 0, Tg = p.mat(K.pink);
-  if (dir === 'side') {
-    p.ell(8, 8, 6, 3, B); p.ell(14, 5, 3, 3, B); p.rect(15, 6, 3, 2, B); p.px(17, 6, N);
-    p.rect(12, 2, 2, 4, E); p.px(14, 4, N); p.rect(12, 8, 2, 1, Co);
-    p.rect(1, f === 1 ? 3 : 5, 2, 2, B);                                                     // wagging tail
-    const lf = f === 1 ? 1 : 0;
-    p.rect(4, 11, 2, 3 - lf, B); p.rect(7, 11, 2, 2 + lf, B); p.rect(10, 11, 2, 3 - lf, B); p.rect(12, 11, 2, 2 + lf, B);
-    if (Sp) { p.px(6, 7, Sp); p.px(7, 7, Sp); p.px(9, 9, Sp); p.px(10, 6, Sp); }
-    if (o.angry) p.px(17, 8, Tg);
-  } else {
-    const back = dir === 'up';
-    p.ell(9, 9, 5, 4, B); p.ell(9, 5, 4, 4, B);
-    p.rect(3, 3, 2, 5, E); p.rect(13, 3, 2, 5, E);
-    if (!back) { p.px(7, 5, N); p.px(11, 5, N); p.rect(8, 7, 2, 1, N); p.px(8, 9, Tg); p.rect(7, 9, 4, 1, Co); p.px(7, 4, Wh); }
-    else { p.rect(8, f === 1 ? 2 : 3, 2, 3, B); p.rect(7, 9, 4, 1, Co); }
-    const lf = f === 1 ? 1 : 0;
-    p.rect(5, 12, 2, 2 - lf, B); p.rect(11, 12, 2, 1 + lf, B);
-    if (Sp) { p.px(6, 9, Sp); p.px(12, 10, Sp); p.px(10, 4, Sp); }
-  }
-  return p.render();
-}
-const DOGPALS = [
-  { fur:K.wood, ear:K.roofBrown },                                   // mutt
-  { fur:K.white3, ear:K.dark, spot:C(4,4,8) },                       // dalmatian
-  { fur:K.gold, ear:K.orange },                                      // golden
-  { fur:K.dark, ear:K.dark, spot:C(20,12,6) },                       // black lab
+// ───────────────────────── Hall monitors (same 16x22 rig as the students) ─────────────────────────
+const MONPALS = [
+  { name:'HALL MONITOR', skin:K.skin, hair:K.hairBrown, cap:K.orange, shirt:K.orange, shorts:K.dark, bag:K.dark, logo:K.yellow },
+  { name:'COACH',        skin:K.skin2, hair:K.hairBlack, cap:K.red, shirt:K.red, shorts:K.white3, bag:K.dark, logo:K.white3 },
+  { name:'TEACHER',      skin:K.skin, hair:K.hairRed, shirt:K.purple, shorts:K.denim, bag:K.wood, logo:K.white3 },
+  { name:'PRINCIPAL',    skin:K.skin2, hair:K.metal, shirt:K.dark, shorts:K.dark, bag:K.dark, logo:K.red },
 ];
-const DOGSPR = DOGPALS.map(o => { const s = {}; for (const d of ['down', 'up', 'side']) s[d] = [0, 1].map(f => buildDog(d, f, o)); return s; });
+const MONSPR = MONPALS.map(o => { const s = {}; for (const d of ['down', 'up', 'side']) s[d] = [0, 1, 2].map(f => buildKid(d, f, o)); return s; });
 
 // ───────────────────────── Rides ─────────────────────────
 function buildRide(kind, dir) {
@@ -391,6 +371,22 @@ const CANDY_IMG = CANDY.map((_, i) => buildCandy(i));
 // style: house | shop ; w x d footprint, fh wall height
 function buildBuilding(o) {
   const { w, d, fh } = o, R = rng(o.seed || 1), p = new Painter(w, d + fh);
+  if (o.style === 'locker') {                                            // a bank of lockers; yours has the gold star
+    const T = p.mat(K.metal), Te = p.mat(K.teal), Dk = p.mat(K.teal[0]), Mine = p.mat(K.red), St = p.mat(K.yellow);
+    p.rect(0, 0, w, d, T); paintText(p, 'MY LOCKER', (w - 53) >> 1, 2, p.mat(K.dark[0]));
+    p.rect(0, d, w, fh, Te);
+    for (let x = 0; x < w; x += 8) { const mine = x === (w >> 1) - 4; if (mine) p.rect(x, d, 8, fh, Mine); p.rect(x, d, 1, fh, Dk); for (let y = d + 3; y < d + 9; y += 2) p.rect(x + 2, y, 4, 1, Dk); p.px(x + 6, d + 16, p.mat(K.metal[2])); if (mine) { p.px(x + 3, d + 12, St); p.px(x + 4, d + 12, St); p.px(x + 3, d + 11, St); p.px(x + 4, d + 13, St); } }
+    return p.render();
+  }
+  if (o.style === 'vending') {                                           // two candy machines side by side
+    const T = p.mat(K.metal), Gl = p.mat(K.glass), Sl = p.mat(K.dark);
+    p.rect(0, 0, w, d, T);
+    [[0, K.red], [w >> 1, K.blue]].forEach(([x0, col]) => { const B = p.mat(col), hw = (w >> 1) - 1; p.rect(x0, d, hw, fh, B); p.rect(x0 + 2, d + 3, hw - 7, fh - 12, Gl);
+      for (let y = d + 5; y < d + fh - 10; y += 4) for (let x = x0 + 3; x < x0 + hw - 6; x += 3) p.px(x, y, p.mat(pick([K.pink[1], K.yellow[1], K.green[1], K.wood[1], K.orange[1]])));
+      p.rect(x0 + hw - 4, d + 6, 2, 6, Sl); p.rect(x0 + 2, d + fh - 7, hw - 7, 3, Sl); });
+    paintText(p, 'SNACK', (w - 29) >> 1, 3, p.mat(K.red[0]));
+    return p.render();
+  }
   const Wl = p.mat(o.wall), Rf = p.mat(o.roof), Dr = p.mat(K.door), Gl = p.mat(K.glass), GH = p.mat(K.glassHi), Wh = p.mat(K.white), Bk = p.mat(K.black), Kn = p.mat(K.yellow);
   const RD = p.mat(o.roof[0]), RL = p.mat(o.roof[2]);
   p.rect(0, 0, w, d, Rf);                                                                // roof surface
@@ -429,12 +425,22 @@ function buildTree(kind) {
 const TREES = { round:buildTree('round'), apple:buildTree('apple'), blossom:buildTree('blossom'), pine:buildTree('pine') };
 
 // ───────────────────────── Jumpable props: footprint w x d, height h ─────────────────────────
-const OBJ_SPEC = { bench:[16,5,7], picnic:[18,10,10], trash:[7,6,11], hydrant:[6,5,9], mailbox:[6,4,13], crate:[11,9,11], car:[24,12,12],
+const OBJ_SPEC = { desk:[12,8,9], lunch:[34,10,9], bleacher:[40,14,14], shelf:[36,6,26], locker:[32,5,28], lockerV:[5,32,28], mat:[24,14,3], labbench:[30,10,12], fountainw:[8,5,12], trophy:[20,6,22], bus:[46,16,18], bench:[16,5,7], picnic:[18,10,10], trash:[7,6,11], hydrant:[6,5,9], mailbox:[6,4,13], crate:[11,9,11], car:[24,12,12],
   hedge:[16,6,9], fence:[16,3,8], fenceV:[3,16,8], slide:[10,20,16], ramp:[16,12,9], rail:[24,3,6], cart:[10,7,10], pump:[8,6,16], bush:[12,8,8], doghouse:[14,10,14], popcorn:[12,8,15], seesaw:[22,4,5] };
 function buildObj(type) {
   const [w, d, h] = OBJ_SPEC[type], p = new Painter(w, d + h), F = d + h, R = (x, y, ww, hh, m) => p.rect(x, y, ww, hh, m);
   const top = c => p.mat(c), Wh = p.mat(K.white), Bk = p.mat(K.black);
-  if (type === 'bench') { const W = top(K.wood), M = top(K.metal); R(0, 0, w, d, W); R(0, 2, w, 1, top(K.wood[0])); R(0, d, w, 3, W); R(1, d + 3, 2, 4, M); R(w - 3, d + 3, 2, 4, M); }
+  if (type === 'desk') { const T = top(K.wood), M = top(K.metal); R(0, 0, w, d, T); R(0, d - 1, w, 1, p.mat(K.wood[2])); R(0, d, w, 2, T); R(1, d + 2, 2, h - 2, M); R(w - 3, d + 2, 2, h - 2, M); R(3, 2, 4, 3, p.mat(K.white)); }
+  else if (type === 'lunch') { const T = top(K.white3), M = top(K.metal); R(0, 0, w, d, T); R(0, d, w, 2, T); R(2, d + 2, 2, h - 2, M); R(w - 4, d + 2, 2, h - 2, M); R(6, 3, 5, 3, p.mat(K.red)); R(20, 2, 5, 3, p.mat(K.orange)); p.px(8, 4, p.mat(K.yellow)); }
+  else if (type === 'bleacher') { const T = top(K.metal), Bl = top(K.blue); for (let y = 0; y < d; y += 4) R(0, y, w, 2, T); for (let y = 2; y < d; y += 4) R(0, y, w, 2, Bl); R(0, d, w, h, Bl); for (let y = d + 1; y < F; y += 4) R(0, y, w, 1, p.mat(K.metal[2])); }
+  else if (type === 'shelf') { const T = top(K.wood); R(0, 0, w, d, T); R(0, d, w, h, T); for (let y = d + 1; y < F - 1; y += 6) { for (let x = 1; x < w - 1; x += 2) R(x, y, 2, 5, p.mat(pick([K.red[1], K.blue[1], K.green[1], K.yellow[1], K.purple[1], K.orange[1]]))); R(0, y + 5, w, 1, p.mat(K.wood[0])); } }
+  else if (type === 'locker' || type === 'lockerV') { const T = top(K.teal), Dk = p.mat(K.teal[0]); R(0, 0, w, d, T); R(0, d, w, h, T); if (type === 'locker') for (let x = 0; x < w; x += 8) { R(x, d, 1, h, Dk); for (let y = d + 3; y < d + 9; y += 2) R(x + 2, y, 4, 1, Dk); p.px(x + 6, d + 14, p.mat(K.metal[2])); } else for (let y = 0; y < F; y += 6) R(0, y, w, 1, Dk); }
+  else if (type === 'mat') { const B = top(K.blue); R(0, 0, w, d, B); R(0, d, w, h, B); R(0, 4, w, 1, p.mat(K.blue[0])); R(0, 9, w, 1, p.mat(K.blue[0])); }
+  else if (type === 'labbench') { const T = top(K.dark), Wl = top(K.white3); R(0, 0, w, d, T); R(0, d, w, h, Wl); R(4, 2, 2, 5, p.mat(K.metal)); p.px(5, 1, p.mat(K.glass)); R(18, 3, 4, 4, p.mat(K.glass)); p.px(19, 4, p.mat(K.green)); R(0, d + 3, w, 1, p.mat(K.white3[0])); }
+  else if (type === 'fountainw') { const M = top(K.metal); R(0, 0, w, d, M); R(2, 1, 4, 3, p.mat(K.glass)); R(1, d, w - 2, h, M); }
+  else if (type === 'trophy') { const W = top(K.wood), G2 = p.mat(K.glass); R(0, 0, w, d, W); R(0, d, w, h, W); R(2, d + 2, w - 4, h - 6, G2); for (const x of [4, 9, 14]) { R(x, d + 6, 2, 4, p.mat(K.gold)); p.px(x, d + 5, p.mat(K.gold)); } }
+  else if (type === 'bus') { const Y = top(K.yellow), G2 = p.mat(K.glass), T = p.mat(K.black); R(0, 0, w, d, Y); R(0, d, w, h, Y); for (let x = 3; x < w - 4; x += 7) R(x, d + 2, 5, 5, G2); R(0, d + 9, w, 1, T); R(4, F - 2, 5, 2, T); R(w - 9, F - 2, 5, 2, T); paintText(p, 'SCHOOL', (w >> 1) - 17, 4, p.mat(K.black)); }
+  else if (type === 'bench') { const W = top(K.wood), M = top(K.metal); R(0, 0, w, d, W); R(0, 2, w, 1, top(K.wood[0])); R(0, d, w, 3, W); R(1, d + 3, 2, 4, M); R(w - 3, d + 3, 2, 4, M); }
   else if (type === 'picnic') { const W = top(K.wood); R(0, 0, w, d, W); for (let y = 2; y < d; y += 3) R(0, y, w, 1, top(K.wood[0])); R(0, d, w, 3, W); R(2, d + 3, 2, h - 3, W); R(w - 4, d + 3, 2, h - 3, W); R(5, 2, 5, 3, top(K.red)); R(6, 2, 3, 1, Wh); }
   else if (type === 'trash') { const G = top(K.green); R(0, 0, w, d, top(K.dark)); R(0, d, w, h, G); R(0, d + 2, w, 1, top(K.green[0])); R(1, 1, w - 2, 1, G); }
   else if (type === 'hydrant') { const Rr = top(K.red); p.ell(3, 2, 2, 2, Rr); R(1, d, 4, h, Rr); R(0, d + 3, 6, 2, Rr); R(2, 1, 2, 1, top(K.yellow)); }
@@ -469,16 +475,17 @@ function buildFountain() {
   p.ell(22, 22, 21, 12, S); p.ell(22, 21, 18, 9, W); p.rect(19, 6, 6, 16, M); p.ell(22, 7, 8, 4, S); p.ell(22, 6, 6, 2, W); p.px(14, 20, Hi); p.px(28, 23, Hi); p.px(22, 2, Hi); p.px(21, 3, Hi);
   return p.render();
 }
-// ───────────────────────── Town layout ─────────────────────────
-// A 64x64 tile town: four roads each way, a 3x3 grid of blocks between them, woods around the edge.
-const TG = 0, TR = 1, TS = 2, TP = 3, TN = 4, TW = 5, TZ = 6, TK = 7, TA = 8, TF = 9, TD = 10;   // grass road sidewalk path sand water plaza concrete asphalt flowers woods
+// ───────────────────────── Campus layout ─────────────────────────
+// A 64x64 tile high school: four hallways each way, a 3x3 grid of areas between them, a brick wall round the edge.
+const TG = 0, TR = 1, TS = 2, TP = 3, TN = 4, TW = 5, TZ = 6, TK = 7, TA = 8, TF = 9, TD = 10, TL = 11;
+// grass, hallway, hallway edge, concrete path, running track, water, cafeteria tiles, gym wood, asphalt, football field, brick wall, library carpet
 const ROADS = [4, 22, 40, 58], BLOCK0 = [6, 24, 42], BLK = 14;
 const tile = new Uint8Array(MW * MW);
 const setT = (x, y, t) => { if (x >= 0 && y >= 0 && x < MW && y < MW) tile[y*MW + x] = t; };
 const getT = (x, y) => x < 0 || y < 0 || x >= MW || y >= MW ? TD : tile[y*MW + x];
 const fillT = (x, y, w, h, t) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) setT(x + i, y + j, t); };
 const N = MAP * MAP, walk = new Uint8Array(N), hmap = new Uint8Array(N);
-const BUILDINGS = [], TREELIST = [], OBJS = [], LOCS = [], SIGNS = [], DOGHOUSES = [], DECOR_KIDS = [];
+const BUILDINGS = [], TREELIST = [], OBJS = [], LOCS = [], SIGNS = [], POSTS = [], DECOR_KIDS = [];
 let FOUNTAIN = null;
 function addBuilding(o) {
   o.img = buildBuilding(o); BUILDINGS.push(o);
@@ -492,95 +499,86 @@ function addObj(type, x, y) {
   OBJS.push({ type, x, y, ...buildObj(type) }); for (let yy = y; yy < y + d; yy++) for (let xx = x; xx < x + w; xx++) hmap[yy*MAP + xx] = h;
   return true;
 }
-function addVenueSign(name, x, y, color) {
+// a stand-alone sign (gym, library, bake sale) with a few students hanging around it
+function addSign(name, kind, x, y, color) {
   const img = buildSign(name, color), w = img.width;
   SIGNS.push({ x, y, img });
-  LOCS.push({ name, kind:'venue', door:{ x:x + (w >> 1), y:y + 32 }, color });
+  LOCS.push({ name, kind, door:{ x:x + (w >> 1), y:y + 32 }, color });
   for (const [dx, dy, k] of [[-14, 22, 0], [w + 10, 20, 1], [w + 24, 26, 2]]) DECOR_KIDS.push({ x:x + dx, y:y + dy, who:NPC_KIDS[(k + name.length) % 4], face:{ dx:dx < 0 ? 1 : -1, dy:0 } });
 }
 function buildTown() {
   const R = rng(2024);
-  fillT(0, 0, MW, MW, TG);
-  for (const r of ROADS) for (let t = 0; t < MW; t++) {
-    for (const [x, y] of [[r - 1, t], [r, t], [t, r - 1], [t, r]]) setT(x, y, TR);
-  }
-  for (const r of ROADS) for (let t = 0; t < MW; t++) for (const [x, y] of [[r - 2, t], [r + 1, t], [t, r - 2], [t, r + 1]]) if (getT(x, y) !== TR) setT(x, y, TS);
+  fillT(0, 0, MW, MW, TR);
+  for (const r of ROADS) for (let t = 0; t < MW; t++) for (const [x, y] of [[r - 2, t], [r + 1, t], [t, r - 2], [t, r + 1]]) setT(x, y, TS);
+  for (const r of ROADS) for (let t = 0; t < MW; t++) for (const [x, y] of [[r - 1, t], [r, t], [t, r - 1], [t, r]]) setT(x, y, TR);
   fillT(0, 0, MW, 2, TD); fillT(0, 0, 2, MW, TD); fillT(0, 60, MW, 4, TD); fillT(60, 0, 4, MW, TD);
   const B = (bx, by) => ({ ox:BLOCK0[bx]*TILE, oy:BLOCK0[by]*TILE, tx:BLOCK0[bx], ty:BLOCK0[by] });
-  const house = (x, y, w, d, wall, roof, seed, extra = {}) => addBuilding({ style:'house', x, y, w, d, fh:24, wall, roof, seed, ...extra });
-  const pathDown = (x, y0, y1) => { for (let y = y0; y < y1; y += 16) { setT(x >> 4, y >> 4, TP); setT((x - 8) >> 4, y >> 4, TP); } };
-  // (0,0) home street
-  { const { ox, oy, tx, ty } = B(0, 0);
-    house(ox + 16, oy + 128, 64, 32, K.wallSky, K.roofRed, 3, { name:'HOME', loc:'home', color:K.green[2] }); pathDown(ox + 48, oy + 168, oy + 224);
-    house(ox + 132, oy + 128, 60, 30, K.wallPink, K.roofBlue, 4); pathDown(ox + 162, oy + 166, oy + 224);
-    house(ox + 16, oy + 16, 58, 30, K.wallLemon, K.roofBrown, 5); house(ox + 128, oy + 16, 64, 32, K.wallMint, K.roofRed, 6);
-    for (let x = ox; x < ox + 224; x += 16) if (x < ox + 40 || x > ox + 60) if (x < ox + 150 || x > ox + 172) addObj('fence', x, oy + 104);
-    addObj('bush', ox + 96, oy + 74);
-    addObj('mailbox', ox + 30, oy + 196); addObj('mailbox', ox + 140, oy + 196); addObj('bush', ox + 86, oy + 150); addObj('bush', ox + 200, oy + 150);
-    addTree(ox + 100, oy + 140, 'apple'); addTree(ox + 210, oy + 60, 'round'); addTree(ox + 8, oy + 80, 'round');
-    fillT(tx + 5, ty + 6, 2, 1, TF); fillT(tx + 11, ty + 9, 2, 1, TF); }
-  // (1,0) shops
+  const room = (x, y, w, name, wall, roof, extra = {}) => addBuilding({ style:'shop', x, y, w, d:28, fh:34, wall, roof, name, signText:K.dark[0], seed:x + y, ...extra });
+  // (0,0) homeroom hall: classrooms and your locker
+  { const { ox, oy } = B(0, 0);
+    room(ox + 8, oy + 10, 100, 'ROOM 101', K.wallBrick, K.roofBrown); room(ox + 116, oy + 10, 100, 'ROOM 102', K.wallBrick, K.roofBrown);
+    addBuilding({ style:'locker', x:ox + 80, y:oy + 136, w:64, d:10, fh:30, name:'MY LOCKER', loc:'home', color:K.green[2] });
+    addObj('lockerV', ox + 10, oy + 80); addObj('lockerV', ox + 206, oy + 80); addObj('locker', ox + 20, oy + 150); addObj('locker', ox + 172, oy + 150);
+    addObj('bench', ox + 40, oy + 100); addObj('bench', ox + 160, oy + 100); addObj('fountainw', ox + 108, oy + 80); addObj('trash', ox + 60, oy + 200); addObj('trophy', ox + 150, oy + 196);
+    for (let k = 0; k < 2; k++) DECOR_KIDS.push({ x:ox + 60 + k*100, y:oy + 62, who:NPC_KIDS[k], face:{ dx:0, dy:1 } }); }
+  // (1,0) cafeteria
   { const { ox, oy, tx, ty } = B(1, 0);
-    fillT(tx, ty + 10, BLK, 4, TZ);
-    addBuilding({ style:'shop', x:ox + 10, y:oy + 112, w:96, d:30, fh:36, wall:K.wallPink, roof:K.roofBrown, name:'CANDY SHOP', loc:'store', awning:K.pink, signText:K.pink[0], color:K.pink[1], seed:7 });
-    addBuilding({ style:'shop', x:ox + 118, y:oy + 112, w:96, d:30, fh:36, wall:K.wallLemon, roof:K.roofGreen, name:'CORNER STORE', loc:'store', awning:K.green, signText:K.green[0], color:K.green[1], seed:8 });
-    house(ox + 20, oy + 14, 60, 30, K.wallPeach, K.roofBlue, 9); house(ox + 136, oy + 14, 60, 30, K.wallLilac, K.roofRed, 10);
-    addObj('bench', ox + 30, oy + 196); addObj('trash', ox + 108, oy + 190); addObj('bench', ox + 170, oy + 196); addObj('hydrant', ox + 6, oy + 200);
-    addTree(ox + 104, oy + 66, 'blossom'); addObj('hedge', ox + 20, oy + 84); addObj('hedge', ox + 150, oy + 84); addObj('doghouse', ox + 100, oy + 80); DOGHOUSES.push({ x:ox + 107, y:oy + 98 }); }
-  // (2,0) skate park
+    fillT(tx, ty, BLK, BLK, TZ);
+    addBuilding({ style:'shop', x:ox + 12, y:oy + 8, w:200, d:28, fh:32, wall:K.wallLemon, roof:K.roofRed, name:'CAFETERIA', loc:'store', awning:K.red, signText:K.red[0], color:K.orange[2], seed:21 });
+    for (const y of [86, 128, 170]) for (const x of [14, 120]) addObj('lunch', ox + x, oy + y);
+    addObj('trash', ox + 100, oy + 200); addObj('trash', ox + 108, oy + 100);
+    for (let k = 0; k < 4; k++) DECOR_KIDS.push({ x:ox + 30 + (k % 2)*106, y:oy + 82 + (k >> 1)*42, who:NPC_KIDS[k], face:{ dx:0, dy:1 } }); }
+  // (2,0) gym
   { const { ox, oy, tx, ty } = B(2, 0);
-    fillT(tx + 1, ty + 1, BLK - 2, BLK - 2, TK);
-    for (const [t, x, y] of [['ramp', 30, 30], ['ramp', 170, 30], ['rail', 90, 60], ['crate', 60, 110], ['crate', 72, 110], ['ramp', 140, 110], ['rail', 40, 160], ['ramp', 170, 160], ['bench', 100, 140], ['trash', 24, 200]]) addObj(t, ox + x, oy + y);
-    addVenueSign('SKATE PARK', ox + 88, oy + 182, K.blue[0]);
-    addTree(ox + 4, oy + 4, 'pine'); addTree(ox + 200, oy + 4, 'pine'); }
-  // (0,1) playground
+    fillT(tx, ty, BLK, BLK, TK);
+    for (const x of [6, 54, 130, 178]) addObj('bleacher', ox + x, oy + 8);
+    addObj('mat', ox + 16, oy + 132); addObj('mat', ox + 184, oy + 132); addObj('mat', ox + 100, oy + 70);
+    addSign('GYM', 'venue', ox + 96, oy + 170, K.red[0]); POSTS.push({ x:ox + 112, y:oy + 110 }); }
+  // (0,1) library
   { const { ox, oy, tx, ty } = B(0, 1);
-    fillT(tx + 2, ty + 2, 10, 8, TN);
-    addObj('slide', ox + 52, oy + 50); addObj('slide', ox + 150, oy + 60); addObj('seesaw', ox + 90, oy + 110); addObj('crate', ox + 110, oy + 60);
-    addObj('bench', ox + 30, oy + 180); addObj('bench', ox + 170, oy + 180); addObj('picnic', ox + 100, oy + 190);
-    for (let x = ox + 24; x < ox + 200; x += 16) if (x < ox + 96 || x > ox + 128) addObj('fence', x, oy + 168);
-    addVenueSign('PLAYGROUND', ox + 88, oy + 140, K.red[0]);
-    for (const [x, y] of [[8, 10], [200, 12], [6, 120], [204, 110]]) addTree(ox + x, oy + y, pick(['round', 'apple', 'blossom'])); }
-  // (1,1) town square
+    fillT(tx, ty, BLK, BLK, TL);
+    for (const y of [14, 50, 86]) for (const x of [8, 60, 128, 180]) addObj('shelf', ox + x, oy + y);
+    for (const [x, y] of [[20, 128], [48, 128], [160, 128], [188, 128]]) addObj('desk', ox + x, oy + y);
+    addSign('LIBRARY', 'venue', ox + 84, oy + 172, K.blue[0]); }
+  // (1,1) courtyard
   { const { ox, oy, tx, ty } = B(1, 1);
-    fillT(tx, ty, BLK, BLK, TZ); fillT(tx + 1, ty + 12, 3, 1, TF); fillT(tx + 10, ty + 12, 3, 1, TF);
-    addBuilding({ style:'shop', x:ox + 8, y:oy + 10, w:98, d:30, fh:36, wall:K.wallLilac, roof:K.roofBlue, name:'ARCADE', loc:'venue', awning:K.purple, signText:K.purple[0], color:K.purple[1], marquee:true, seed:11 });
-    addBuilding({ style:'shop', x:ox + 118, y:oy + 10, w:98, d:30, fh:36, wall:K.wallMint, roof:K.roofRed, name:'BIKE SHOP', loc:'bike', awning:K.blue, signText:K.blue[0], color:K.blue[1], seed:12 });
-    FOUNTAIN = { x:ox + 90, y:oy + 120, img:buildFountain() };
-    addObj('bench', ox + 30, oy + 140); addObj('bench', ox + 178, oy + 140); addObj('bench', ox + 30, oy + 176); addObj('bench', ox + 178, oy + 176);
-    addObj('trash', ox + 112, oy + 200); addObj('bush', ox + 8, oy + 100); addObj('bush', ox + 204, oy + 100);
-    for (let k = 0; k < 2; k++) DECOR_KIDS.push({ x:ox + 40 + k*150, y:oy + 92, who:NPC_KIDS[k + 1], face:{ dx:0, dy:-1 } }); }
-  // (2,1) super mart
-  { const { ox, oy, tx, ty } = B(2, 1);
-    fillT(tx, ty + 4, BLK, BLK - 4, TA);
-    addBuilding({ style:'shop', x:ox + 12, y:oy + 8, w:200, d:36, fh:34, wall:K.wallSky, roof:K.roofGreen, name:'SUPER MART', loc:'store', awning:K.red, signText:K.red[0], color:K.red[1], seed:13 });
-    for (const [x, y] of [[12, 100], [52, 100], [148, 100], [188, 100], [12, 160], [92, 160], [148, 160]]) addObj('car', ox + x, oy + y);
-    addObj('cart', ox + 120, oy + 96); addObj('cart', ox + 132, oy + 96); addObj('cart', ox + 70, oy + 140); addObj('trash', ox + 120, oy + 200); }
-  // (0,2) big park with a pond
+    fillT(tx, ty, BLK, BLK, TG); fillT(tx + 6, ty, 2, BLK, TP); fillT(tx, ty + 6, BLK, 2, TP);
+    FOUNTAIN = { x:ox + 90, y:oy + 82, img:buildFountain() };
+    for (const [x, y, k] of [[4, 4, 'round'], [190, 4, 'blossom'], [4, 60, 'apple'], [190, 64, 'round']]) addTree(ox + x, oy + y, k);
+    addObj('bench', ox + 40, oy + 40); addObj('bench', ox + 168, oy + 40); addObj('bush', ox + 60, oy + 150); addObj('picnic', ox + 30, oy + 112);
+    addSign('BAKE SALE', 'store', ox + 14, oy + 162, K.pink[0]);
+    addBuilding({ style:'shop', x:ox + 128, y:oy + 136, w:86, d:26, fh:30, wall:K.wallMint, roof:K.roofBlue, name:'LOST & FOUND', loc:'bike', awning:K.blue, signText:K.blue[0], color:K.blue[2], seed:22 }); }
+  // (2,1) school store, vending machines, teachers' lounge
+  { const { ox, oy } = B(2, 1);
+    addBuilding({ style:'shop', x:ox + 10, y:oy + 12, w:100, d:28, fh:34, wall:K.wallSky, roof:K.roofGreen, name:'SCHOOL STORE', loc:'store', awning:K.blue, signText:K.blue[0], color:K.teal[2], seed:23 });
+    addBuilding({ style:'vending', x:ox + 150, y:oy + 26, w:40, d:12, fh:32, name:'VENDING', loc:'store', color:K.red[2] });
+    room(ox + 40, oy + 130, 120, 'TEACHERS ONLY', K.wallLilac, K.roofBrown);
+    addObj('locker', ox + 14, oy + 96); addObj('locker', ox + 180, oy + 96); addObj('fountainw', ox + 120, oy + 96); addObj('trash', ox + 200, oy + 200);
+    POSTS.push({ x:ox + 100, y:oy + 110 }); }
+  // (0,2) football field and track
   { const { ox, oy, tx, ty } = B(0, 2);
-    for (let j = 0; j < BLK; j++) for (let i = 0; i < BLK; i++) { const e = ((i - 6.5)/4.6)**2 + ((j - 6.5)/3.4)**2; if (e < 1) setT(tx + i, ty + j, TW); else if (e < 1.65) setT(tx + i, ty + j, TP); }
-    fillT(tx, ty + 6, 1, 2, TP); fillT(tx + 13, ty + 6, 1, 2, TP);
-    for (const [x, y, k] of [[10, 10, 'round'], [60, 4, 'blossom'], [150, 6, 'apple'], [196, 30, 'round'], [4, 190, 'pine'], [196, 186, 'round'], [100, 196, 'blossom'], [40, 190, 'apple']]) addTree(ox + x, oy + y, k);
-    addObj('picnic', ox + 24, oy + 40); addObj('picnic', ox + 180, oy + 150); addObj('bench', ox + 100, oy + 14); addObj('bush', ox + 150, oy + 190); addObj('bush', ox + 60, oy + 170);
-    fillT(tx + 1, ty + 1, 2, 2, TF); fillT(tx + 11, ty + 11, 2, 2, TF);
-    DOGHOUSES.push({ x:ox + 30, y:oy + 120 }); }
-  // (1,2) movies
-  { const { ox, oy, tx, ty } = B(1, 2);
-    fillT(tx, ty + 5, BLK, BLK - 5, TZ);
-    addBuilding({ style:'shop', x:ox + 12, y:oy + 10, w:200, d:36, fh:40, wall:K.wallBrick, roof:K.roofBrown, name:'MOVIES', loc:'venue', awning:K.yellow, signText:K.red[0], color:K.yellow[1], marquee:true, seed:14 });
-    addObj('popcorn', ox + 40, oy + 120); addObj('bench', ox + 150, oy + 150); addObj('bench', ox + 60, oy + 180); addObj('trash', ox + 120, oy + 196); addObj('bush', ox + 8, oy + 196); addObj('bush', ox + 204, oy + 196);
-    for (let k = 0; k < 2; k++) DECOR_KIDS.push({ x:ox + 70 + k*90, y:oy + 102, who:NPC_KIDS[k + 2], face:{ dx:0, dy:-1 } }); }
-  // (2,2) gas station
+    fillT(tx, ty, BLK, BLK, TN); fillT(tx + 1, ty + 2, BLK - 2, BLK - 4, TF);
+    addObj('bleacher', ox + 40, oy + 202); addObj('bleacher', ox + 140, oy + 202); POSTS.push({ x:ox + 112, y:oy + 112 }); }
+  // (1,2) art room and science lab
+  { const { ox, oy } = B(1, 2);
+    room(ox + 8, oy + 12, 100, 'ART ROOM', K.wallPink, K.roofBlue, { loc:'venue', awning:K.purple, signText:K.purple[0], color:K.purple[2] });
+    room(ox + 116, oy + 12, 100, 'SCIENCE LAB', K.wallMint, K.roofGreen, { loc:'venue', awning:K.green, signText:K.green[0], color:K.green[2] });
+    addObj('labbench', ox + 130, oy + 100); addObj('labbench', ox + 170, oy + 140); addObj('desk', ox + 30, oy + 100); addObj('desk', ox + 60, oy + 140); addObj('desk', ox + 20, oy + 170);
+    addObj('locker', ox + 96, oy + 196); addObj('bench', ox + 150, oy + 200);
+    for (let k = 0; k < 2; k++) DECOR_KIDS.push({ x:ox + 34 + k*120, y:oy + 70, who:NPC_KIDS[k + 2], face:{ dx:0, dy:-1 } }); }
+  // (2,2) parking lot
   { const { ox, oy, tx, ty } = B(2, 2);
-    fillT(tx, ty, 8, 9, TA);
-    addBuilding({ style:'shop', x:ox + 130, y:oy + 20, w:86, d:30, fh:32, wall:K.wallPeach, roof:K.roofRed, name:'GAS & GO', loc:'store', awning:K.orange, signText:K.orange[0], color:K.orange[1], seed:15 });
-    addObj('pump', ox + 30, oy + 50); addObj('pump', ox + 70, oy + 50); addObj('pump', ox + 30, oy + 100); addObj('pump', ox + 70, oy + 100); addObj('car', ox + 10, oy + 120);
-    house(ox + 140, oy + 150, 60, 30, K.wallMint, K.roofBrown, 16); house(ox + 20, oy + 166, 56, 28, K.wallPink, K.roofGreen, 17);
-    addObj('doghouse', ox + 100, oy + 180); DOGHOUSES.push({ x:ox + 107, y:oy + 198 }); addTree(ox + 110, oy + 130, 'round'); }
-  // woods round the edge and a scatter of extra trees in the blocks
-  for (let i = 0; i < 70; i++) { const a = R(); const t = a < .25 ? [R()*MAP, 6] : a < .5 ? [R()*MAP, MAP - 34 + R()*14] : a < .75 ? [6, R()*MAP] : [MAP - 32 + R()*10, R()*MAP]; addTree(t[0] | 0, t[1] | 0, pick(['pine', 'round', 'pine'])); }
-  // hedges along some block edges, fire hydrants and mailboxes at corners
-  for (const r of ROADS) for (const c of ROADS) { addObj('hydrant', c*TILE + 20, r*TILE + 20); }
+    fillT(tx, ty, BLK, BLK, TA);
+    addObj('bus', ox + 20, oy + 20); addObj('bus', ox + 120, oy + 20);
+    for (const [x, y] of [[12, 100], [52, 100], [148, 100], [188, 100], [12, 160], [92, 160], [148, 160]]) addObj('car', ox + x, oy + y);
+    addTree(ox + 196, oy + 196, 'round'); }
+  // locker banks along the hallways, with gaps to get through
+  for (const r of ROADS) for (let p = 40; p < MAP - 40; p += 88) {
+    const near = ROADS.some(q => Math.abs(p - q*TILE) < 56); if (near) continue;
+    addObj('locker', p, (r - 2)*TILE + 4); addObj('locker', p + 24, (r + 1)*TILE + 7);
+    addObj('lockerV', (r - 2)*TILE + 4, p + 24); addObj('lockerV', (r + 1)*TILE + 7, p);
+  }
+  for (const r of ROADS) for (const c of ROADS) POSTS.push({ x:c*TILE, y:r*TILE });
 }
 buildTown();
 
@@ -588,7 +586,7 @@ buildTown();
 function buildCollision() {
   for (let y = 0; y < MAP; y++) for (let x = 0; x < MAP; x++) { const t = tile[(y >> 4)*MW + (x >> 4)]; walk[y*MAP + x] = t === TW ? 0 : 1; }
   const solid = (x, y, w, h) => { for (let yy = Math.max(0, y); yy < Math.min(MAP, y + h); yy++) for (let xx = Math.max(0, x); xx < Math.min(MAP, x + w); xx++) walk[yy*MAP + xx] = 0; };
-  solid(0, 0, MAP, 22); solid(0, 0, 22, MAP); solid(0, MAP - 22, MAP, 22); solid(MAP - 22, 0, 22, MAP);   // the woods
+  solid(0, 0, MAP, 22); solid(0, 0, 22, MAP); solid(0, MAP - 22, MAP, 22); solid(MAP - 22, 0, 22, MAP);   // the school's brick boundary wall
   for (const b of BUILDINGS) solid(b.x, b.y, b.w, b.d);
   for (const t of TREELIST) solid(t.x + 10, t.y + 28, 6, 4);
   if (FOUNTAIN) solid(FOUNTAIN.x + 4, FOUNTAIN.y + 14, 36, 18);
@@ -606,40 +604,38 @@ let BG, MINI, DITHER, CLOUD;
 function tileArt(t, v) {
   const c = mk(16, 16), x = c.getContext('2d'), R = rng(t*31 + v*7 + 1), dot = (a, b, col) => { x.fillStyle = col; x.fillRect(a, b, 1, 1); }, fill = col => { x.fillStyle = col; x.fillRect(0, 0, 16, 16); };
   const scatter = (n, col, w = 1, h = 1) => { x.fillStyle = col; for (let i = 0; i < n; i++) x.fillRect(R()*16|0, R()*16|0, w, h); };
-  if (t === TG || t === TF || t === TD) {
-    fill(t === TD ? C(5,15,6) : C(12,25,8)); scatter(10, t === TD ? C(3,11,4) : C(9,21,6), 1, 2); scatter(6, t === TD ? C(8,19,7) : C(17,29,11));
-    if (t === TF || v === 2) { for (let i = 0; i < (t === TF ? 6 : 2); i++) { const a = 1 + R()*13|0, b = 1 + R()*13|0, col = pick([C(31,12,18), C(31,28,8), C(31,31,31), C(24,14,31)]); dot(a, b, col); dot(a - 1, b, col); dot(a + 1, b, col); dot(a, b - 1, col); dot(a, b + 1, col); dot(a, b, C(31,26,4)); } }
-  } else if (t === TR) { fill(C(11,12,17)); scatter(8, C(9,10,14)); scatter(4, C(14,15,20)); }
-  else if (t === TS) { fill(C(27,25,23)); x.fillStyle = C(22,20,19); x.fillRect(0, 0, 16, 1); x.fillRect(0, 0, 1, 16); x.fillRect(8, 0, 1, 16); scatter(3, C(24,22,20)); }
-  else if (t === TP) { fill(C(27,21,13)); scatter(8, C(23,17,10)); scatter(4, C(30,25,17)); }
-  else if (t === TN) { fill(C(31,27,16)); scatter(12, C(28,23,12)); scatter(5, C(31,30,22)); }
-  else if (t === TW) { fill(C(8,18,30)); x.fillStyle = C(15,25,31); for (let i = 0; i < 3; i++) { const a = R()*12|0, b = R()*15|0; x.fillRect(a, b, 4, 1); } }
-  else if (t === TZ) { fill(C(30,23,22)); x.fillStyle = C(25,17,18); for (let r = 0; r < 4; r++) { x.fillRect(0, r*4, 16, 1); x.fillRect(((r % 2) ? 4 : 0) + 0, r*4, 1, 4); x.fillRect(((r % 2) ? 4 : 0) + 8, r*4, 1, 4); } }
-  else if (t === TK) { fill(C(24,25,27)); x.fillStyle = C(19,20,23); x.fillRect(0, 0, 16, 1); x.fillRect(0, 0, 1, 16); scatter(4, C(21,22,25)); }
+  const checker = (a, b2, n) => { for (let j = 0; j < 16; j += n) for (let i = 0; i < 16; i += n) { x.fillStyle = ((i + j) / n) % 2 ? a : b2; x.fillRect(i, j, n, n); } };
+  if (t === TG || t === TF) {
+    fill(t === TF ? C(10,23,7) : C(12,25,8)); scatter(10, t === TF ? C(8,19,5) : C(9,21,6), 1, 2); scatter(6, C(17,29,11));
+    if (t === TG && v === 2) { const a = 3 + R()*10|0, b = 3 + R()*10|0, col = pick([C(31,12,18), C(31,28,8), C(31,31,31)]); dot(a, b, col); dot(a - 1, b, col); dot(a + 1, b, col); dot(a, b - 1, col); dot(a, b + 1, col); dot(a, b, C(31,26,4)); }
+  } else if (t === TD) { fill(C(22,8,6)); x.fillStyle = C(14,5,5); for (let r = 0; r < 4; r++) { x.fillRect(0, r*4 + 3, 16, 1); x.fillRect((r % 2) ? 4 : 0, r*4, 1, 3); x.fillRect(((r % 2) ? 4 : 0) + 8, r*4, 1, 3); } scatter(3, C(27,12,9)); }
+  else if (t === TR) { checker(C(29,28,24), C(24,27,27), 8); scatter(5, C(26,25,22)); }                // hallway linoleum
+  else if (t === TS) { fill(C(20,22,27)); x.fillStyle = C(26,27,30); x.fillRect(0, 7, 16, 1); scatter(4, C(18,19,24)); }
+  else if (t === TP) { fill(C(25,25,24)); x.fillStyle = C(20,20,20); x.fillRect(0, 0, 16, 1); x.fillRect(0, 0, 1, 16); scatter(4, C(23,23,22)); }
+  else if (t === TN) { fill(C(26,9,6)); scatter(10, C(23,7,5)); scatter(4, C(29,13,9)); }                 // running track
+  else if (t === TW) { fill(C(8,18,30)); x.fillStyle = C(15,25,31); for (let i = 0; i < 3; i++) x.fillRect(R()*12|0, R()*15|0, 4, 1); }
+  else if (t === TZ) { checker(C(31,31,30), C(28,11,11), 8); }                                            // cafeteria tiles
+  else if (t === TK) { fill(C(29,21,12)); x.fillStyle = C(24,16,8); for (let r = 0; r < 16; r += 4) { x.fillRect(0, r, 16, 1); x.fillRect((r * 5) % 16, r, 1, 4); } scatter(4, C(31,24,15)); }   // gym wood
   else if (t === TA) { fill(C(13,13,18)); scatter(10, C(11,11,15)); scatter(3, C(16,16,21)); }
+  else if (t === TL) { fill(C(8,11,24)); x.fillStyle = C(13,17,29); for (let j = 2; j < 16; j += 6) for (let i = 2; i < 16; i += 6) { x.fillRect(i, j, 2, 2); } scatter(3, C(10,13,26)); }   // library carpet
   return c;
 }
 function bakeTown() {
   const c = mk(MAP, MAP), x = c.getContext('2d');
-  const arts = {}; for (const t of [TG, TR, TS, TP, TN, TW, TZ, TK, TA, TF, TD]) arts[t] = [0, 1, 2].map(v => tileArt(t, v));
+  const arts = {}; for (const t of [TG, TR, TS, TP, TN, TW, TZ, TK, TA, TF, TD, TL]) arts[t] = [0, 1, 2].map(v => tileArt(t, v));
   for (let ty = 0; ty < MW; ty++) for (let tx = 0; tx < MW; tx++) { const t = tile[ty*MW + tx], h = hash(tx, ty); x.drawImage(arts[t][h < .6 ? 0 : h < .9 ? 1 : 2], tx*TILE, ty*TILE); }
-  const isRoad = (tx, ty) => getT(tx, ty) === TR;
-  // lane dashes and crosswalks
-  x.fillStyle = C(31,27,6);
-  for (const r of ROADS) for (let p = 0; p < MAP; p += 14) {
-    const t = p >> 4; if (ROADS.some(q => Math.abs(t - q + .5) < 3)) continue;
-    x.fillRect(p, r*TILE - 1, 7, 2); x.fillRect(r*TILE - 1, p, 2, 7);
-  }
-  x.fillStyle = C(30,30,31);
-  for (const r of ROADS) for (const q of ROADS) for (const s of [-1, 1]) {
-    const cxp = q*TILE, cyp = r*TILE, off = s < 0 ? -2*TILE - 14 : 2*TILE + 4;
-    for (let k = -28; k < 28; k += 5) { x.fillRect(cxp + k, cyp + off, 3, 10); x.fillRect(cxp + off, cyp + k, 10, 3); }
-  }
-  // curbs, shore foam, parking lines
+  // gym court lines, football yard lines, track lanes, parking bays
+  const line = (x0, y0, w, h, col = C(31,31,31)) => { x.fillStyle = col; x.fillRect(x0, y0, w, h); };
+  { const ox = BLOCK0[2]*TILE, oy = BLOCK0[0]*TILE, cl = C(31,31,31);
+    line(ox + 16, oy + 34, 192, 2, cl); line(ox + 16, oy + 200, 192, 2, cl); line(ox + 16, oy + 34, 2, 168, cl); line(ox + 206, oy + 34, 2, 168, cl); line(ox + 111, oy + 34, 2, 168, cl);
+    x.strokeStyle = cl; x.lineWidth = 2; x.beginPath(); x.arc(ox + 112, oy + 118, 22, 0, 7); x.stroke(); line(ox + 16, oy + 92, 30, 2, cl); line(ox + 178, oy + 92, 30, 2, cl); line(ox + 16, oy + 144, 30, 2, cl); line(ox + 178, oy + 144, 30, 2, cl); }
+  { const ox = BLOCK0[0]*TILE, oy = BLOCK0[2]*TILE;
+    for (let tx = 0; tx < BLK - 2; tx++) if (tx % 2) { x.fillStyle = 'rgba(0,40,0,.18)'; x.fillRect(ox + 16 + tx*16, oy + 32, 16, 160); }
+    for (let k = 0; k <= 10; k++) line(ox + 16 + k*19, oy + 32, 1, 160);
+    line(ox + 16, oy + 32, 192, 1); line(ox + 16, oy + 191, 192, 1);
+    line(ox + 4, oy + 8, 216, 1, C(31,28,26)); line(ox + 4, oy + 216, 216, 1, C(31,28,26)); line(ox + 4, oy + 8, 1, 208, C(31,28,26)); line(ox + 219, oy + 8, 1, 208, C(31,28,26)); }
   for (let ty = 0; ty < MW; ty++) for (let tx = 0; tx < MW; tx++) {
     const t = tile[ty*MW + tx], X = tx*TILE, Y = ty*TILE;
-    if (t === TS) { x.fillStyle = C(18,17,18); if (isRoad(tx, ty + 1)) x.fillRect(X, Y + 15, 16, 1); if (isRoad(tx, ty - 1)) x.fillRect(X, Y, 16, 1); if (isRoad(tx + 1, ty)) x.fillRect(X + 15, Y, 1, 16); if (isRoad(tx - 1, ty)) x.fillRect(X, Y, 1, 16); }
-    if (t === TW) { x.fillStyle = C(28,31,31); if (getT(tx, ty - 1) !== TW) x.fillRect(X, Y, 16, 2); if (getT(tx - 1, ty) !== TW) x.fillRect(X, Y, 2, 16); x.fillStyle = C(5,12,22); if (getT(tx, ty + 1) !== TW) x.fillRect(X, Y + 14, 16, 2); if (getT(tx + 1, ty) !== TW) x.fillRect(X + 14, Y, 2, 16); }
     if (t === TA && getT(tx, ty - 1) === TA && (tx % 2 === 0)) { x.fillStyle = C(29,29,31); x.fillRect(X, Y + 2, 1, 12); }
   }
   // cartoon drop shadows (light from the top-left)
@@ -650,9 +646,9 @@ function bakeTown() {
   if (FOUNTAIN) { x.beginPath(); x.ellipse(FOUNTAIN.x + 25, FOUNTAIN.y + 31, 20, 6, 0, 0, 7); x.fill(); }
   BG = c;
   MINI = mk(48, 48); const mx = MINI.getContext('2d');
-  const MC = { [TG]:C(12,25,8), [TF]:C(14,26,10), [TD]:C(4,13,5), [TR]:C(9,10,14), [TS]:C(24,22,20), [TP]:C(26,20,12), [TN]:C(31,27,16), [TW]:C(8,18,30), [TZ]:C(28,21,20), [TK]:C(22,23,26), [TA]:C(12,12,16) };
+  const MC = { [TG]:C(12,25,8), [TF]:C(10,23,7), [TD]:C(18,6,5), [TR]:C(27,27,25), [TS]:C(20,22,27), [TP]:C(25,25,24), [TN]:C(26,9,6), [TW]:C(8,18,30), [TZ]:C(30,18,18), [TK]:C(29,21,12), [TA]:C(12,12,16), [TL]:C(9,12,25) };
   for (let y = 0; y < 48; y++) for (let x2 = 0; x2 < 48; x2++) { mx.fillStyle = MC[getT(x2*MW/48 | 0, y*MW/48 | 0)]; mx.fillRect(x2, y, 1, 1); }
-  mx.fillStyle = C(31,31,31); for (const b of BUILDINGS) mx.fillRect(b.x*48/MAP | 0, b.y*48/MAP | 0, Math.max(1, b.w*48/MAP | 0), Math.max(1, b.d*48/MAP | 0));
+  mx.fillStyle = C(10,8,22); for (const b of BUILDINGS) mx.fillRect(b.x*48/MAP | 0, b.y*48/MAP | 0, Math.max(1, b.w*48/MAP | 0), Math.max(1, b.d*48/MAP | 0));
   DITHER = mk(SZ, SZ); const dd = DITHER.getContext('2d'); dd.fillStyle = 'rgb(6,4,18)';
   for (let y = 0; y < SZ; y++) for (let x2 = 0; x2 < SZ; x2++) if ((x2 + y) % 2 === 0) dd.fillRect(x2, y, 1, 1);
   CLOUD = mk(96, 48); const cx = CLOUD.getContext('2d'); cx.fillStyle = 'rgb(20,30,70)';
@@ -683,7 +679,7 @@ const CURSOR = iconFrom(['o....', 'ooo..', 'oWWo.', 'oWWWo', 'oWWo.', 'ooo..', '
 let G, state = 'off', T = 0, bootT = 0, last = performance.now();
 const cam = { x:0, y:0 };
 const dust = [], rain = Array.from({ length:60 }, () => ({ x:Math.random()*SZ, y:Math.random()*SZ, vy:160 + Math.random()*80, end:40 + Math.random()*220 })), splash = [];
-const butterflies = Array.from({ length:16 }, (_, i) => ({ x:200 + hash(i, 3)*700, y:200 + hash(i, 4)*700, ph:hash(i, 5)*6, col:pick([C(31,20,4), C(31,12,22), C(20,24,31), C(31,31,31)]) }));
+const butterflies = Array.from({ length:8 }, (_, i) => ({ x:BLOCK0[1]*TILE + 20 + hash(i, 3)*190, y:BLOCK0[1]*TILE + 20 + hash(i, 4)*190, ph:hash(i, 5)*6, col:pick([C(31,20,4), C(31,12,22), C(20,24,31), C(31,31,31)]) }));
 const clouds = Array.from({ length:5 }, (_, i) => ({ x:hash(i, 9)*MAP, y:hash(i, 8)*MAP, v:6 + hash(i, 7)*6 }));
 const HOME = () => LOCS.find(l => l.kind === 'home');
 
@@ -693,9 +689,9 @@ function newGame() {
     day:1, dayT:0, cash:START_CASH, hearts:HEARTS_MAX, earned:0,
     inv:CANDY.map(() => 0), cost:CANDY.map(() => 0), own:{}, ev:null,
     p:{ x:h.door.x, y:h.door.y + 6, z:0, vz:0, dash:0, cd:0, inv:0, hurt:0, face:{ dx:0, dy:1 }, anim:0, moving:false },
-    dogs:[], kids:[], floats:[], kidT:2, time:0, msg:{ text:'', t:99 },
+    mons:[], kids:[], floats:[], kidT:2, time:0, msg:{ text:'', t:99 },
   };
-  newPrices(); spawnDogs(); snapCamera();
+  newPrices(); spawnMonitors(); snapCamera();
 }
 const used = () => G.inv.reduce((a, b) => a + b, 0);
 const capacity = () => BASE_CAP + (G.own.backpack ? 15 : 0) + (G.own.bike ? 10 : 0);
@@ -712,54 +708,54 @@ function newPrices() {
   G.store = {}; G.venue = {}; G.sat = {};
   for (const l of LOCS) {
     if (l.kind === 'store') G.store[l.name] = CANDY.map((c, i) => Math.max(5, Math.round(c.base * STORE_MULT[l.name][i] * rnd(.9, 1.1) * evStore(l.name, i))));
-    if (l.kind === 'venue') { G.venue[l.name] = CANDY.map((c, i) => c.base * 1.5 * VENUE_MULT[l.name][i] * rnd(.88, 1.12)); G.sat[l.name] = CANDY.map(() => 1); }
+    if (l.kind === 'venue') { G.venue[l.name] = CANDY.map((c, i) => c.base * 1.25 * VENUE_MULT[l.name][i] * rnd(.88, 1.12)); G.sat[l.name] = CANDY.map(() => 1); }
   }
 }
 const evStore = (name, i) => G.ev && G.ev.store === name ? (G.ev.candy === undefined || G.ev.candy === i ? G.ev.mult : 1) : 1;
 const evVenue = (name, i) => (G.ev && G.ev.venue && G.ev.venue[name] || 1) * (G.ev && G.ev.pay ? G.ev.pay[i] : 1);
-const kidPrice = (name, i, k = 0) => Math.max(5, Math.round(G.venue[name][i] * evVenue(name, i) * Math.max(.45, G.sat[name][i] * Math.pow(.96, k))));
+const kidPrice = (name, i, k = 0) => Math.max(5, Math.round(G.venue[name][i] * evVenue(name, i) * Math.max(.45, G.sat[name][i] * Math.pow(.94, k))));
 const sellQuote = (name, i, n) => { let s = 0; for (let k = 0; k < n; k++) s += kidPrice(name, i, k); return s; };
 
-// ───────────────────────── Dogs ─────────────────────────
+// ───────────────────────── Hall monitors ─────────────────────────
 function walkable(x, y) { return footMax(x, y) === 0; }
-function spawnDogs() {
-  const n = 3 + Math.floor(G.day / 3) + (G.ev && G.ev.dogs || 0); G.dogs = [];
+function spawnMonitors() {
+  const n = 3 + Math.floor(G.day / 3) + (G.ev && G.ev.mons || 0); G.mons = [];
   for (let k = 0; k < n; k++) {
     let x = 0, y = 0;
     for (let t = 0; t < 60; t++) {
-      const h = k < DOGHOUSES.length ? DOGHOUSES[k] : null;
+      const h = t < 30 ? POSTS[(k * 7 + G.day + t) % POSTS.length] : null;   // patrol posts first, then anywhere
       x = h ? h.x + rnd(-10, 10) : rnd(40, MAP - 40); y = h ? h.y + rnd(0, 10) : rnd(40, MAP - 40);
-      if (walkable(x, y) && Math.hypot(x - G.p.x, y - G.p.y) > 180 && Math.hypot(x - HOME().door.x, y - HOME().door.y) > 240 && groundTile(x, y) !== TR) break;
+      if (walkable(x, y) && Math.hypot(x - G.p.x, y - G.p.y) > 180 && Math.hypot(x - HOME().door.x, y - HOME().door.y) > 240) break;
     }
-    const breed = k % DOGPALS.length;
-    G.dogs.push({ x, y, breed, mode:'wander', t:rnd(1, 3), dx:0, dy:0, face:{ dx:1, dy:0 }, anim:0, chase:54 + breed*2 + Math.min(16, G.day * .6), home:{ x, y } });
+    const breed = k === 0 && G.day % 5 === 0 ? 3 : k % 3;   // the principal does rounds every 5th day
+    G.mons.push({ x, y, breed, mode:'wander', t:rnd(1, 3), dx:0, dy:0, face:{ dx:1, dy:0 }, anim:0, chase:58 + breed*2 + Math.min(16, G.day * .6), home:{ x, y } });
   }
 }
-function moveDog(g, dx, dy) {
+function moveMonitor(g, dx, dy) {
   let moved = false;
   if (walkable(g.x + dx, g.y)) { g.x += dx; moved = true; }
   if (walkable(g.x, g.y + dy)) { g.y += dy; moved = true; }
   return moved;
 }
-function updateDogs(dt) {
+function updateMonitors(dt) {
   const p = G.p, safe = nearDoor() >= 0;
-  for (const g of G.dogs) {
+  for (const g of G.mons) {
     const d = Math.hypot(p.x - g.x, p.y - g.y);
     g.t -= dt; g.anim += dt; g.rest = (g.rest || 0) - dt;
     if (g.mode === 'dizzy' || g.mode === 'tired') { if (g.t <= 0) { g.mode = 'wander'; g.t = 1; } continue; }
     if (g.mode === 'wander') {
       if (g.t <= 0) { const a = Math.random()*7; const sit = Math.random() < .3; g.dx = sit ? 0 : Math.cos(a); g.dy = sit ? 0 : Math.sin(a); g.t = rnd(1, 3);
         if (Math.hypot(g.x - g.home.x, g.y - g.home.y) > 160) { const a2 = Math.atan2(g.home.y - g.y, g.home.x - g.x); g.dx = Math.cos(a2); g.dy = Math.sin(a2); } }
-      if (!moveDog(g, g.dx*24*dt, g.dy*24*dt)) g.t = 0;
+      if (!moveMonitor(g, g.dx*24*dt, g.dy*24*dt)) g.t = 0;
       if (g.dx || g.dy) g.face = { dx:g.dx, dy:g.dy };
-      if (d < 90 && p.z < SAFE_Z && !safe && g.rest <= 0) { g.mode = 'chase'; g.t = 2.8; float('WOOF!', g.x, g.y - 22, C(31,31,31)); buzz(); }
+      if (d < 100 && p.z < SAFE_Z && !safe && g.rest <= 0) { g.mode = 'chase'; g.t = 2.8; float(pick(['HEY YOU!', 'STOP!', 'NO CANDY!']), g.x, g.y - 30, C(31,31,31)); buzz(); }
     } else if (g.mode === 'chase') {
       const ux = (p.x - g.x) / (d || 1), uy = (p.y - g.y) / (d || 1);
-      moveDog(g, ux*g.chase*dt, uy*g.chase*dt); g.face = { dx:ux, dy:uy };
-      if (g.t <= 0 || safe || d > 220) { g.mode = 'tired'; g.t = 4; g.rest = 3; float('PANT', g.x, g.y - 22, C(24,24,30)); }
+      moveMonitor(g, ux*g.chase*dt, uy*g.chase*dt); g.face = { dx:ux, dy:uy };
+      if (g.t <= 0 || safe || d > 220) { g.mode = 'tired'; g.t = 4; g.rest = 3; float('HMPH', g.x, g.y - 30, C(24,24,30)); }
     }
-    if (d < 11 && p.vz < 0 && p.z > 1 && p.z < 18) {                 // landed on the dog: boing!
-      p.vz = (G.own.spring ? SPRING_V : JUMP_V) * .8; g.mode = 'dizzy'; g.t = 2.2; puff(g.x, g.y - 8, 5); float('BOING!', g.x, g.y - 24, C(31,27,6)); continue;
+    if (d < 11 && p.vz < 0 && p.z > 1 && p.z < 18) {                 // vaulted right over them: they spin round, dizzy
+      p.vz = (G.own.spring ? SPRING_V : JUMP_V) * .8; g.mode = 'dizzy'; g.t = 2.2; puff(g.x, g.y - 8, 5); float('WHOA!', g.x, g.y - 30, C(31,27,6)); continue;
     }
     if (g.mode === 'chase' && !safe && p.z < SAFE_Z && p.inv <= 0 && d < 9) bite(g);
   }
@@ -769,25 +765,25 @@ function bite(g) {
   const stacks = G.inv.map((q, i) => i).filter(i => G.inv[i] > 0);
   if (stacks.length) {
     const i = stacks.reduce((a, b) => G.inv[a] >= G.inv[b] ? a : b), lost = Math.max(1, Math.ceil(G.inv[i] * .3)); G.inv[i] -= lost; if (!G.inv[i]) G.cost[i] = 0;
-    say(`A DOG GOT YOU! IT RAN OFF WITH ${lost} ${CANDY[i].name}${lost > 1 ? 'S' : ''}.`); float(`-${lost} ${CANDY[i].name}`, p.x, p.y - 30, C(31,12,12));
-  } else { say('A DOG GOT YOU! GOOD THING YOUR POCKETS WERE EMPTY.'); float('OUCH!', p.x, p.y - 30, C(31,12,12)); }
+    say(`CAUGHT BY THE ${MONPALS[g.breed].name}! ${lost} ${CANDY[i].name}${lost > 1 ? 'S' : ''} CONFISCATED. STRIKE!`); float('STRIKE!', p.x, p.y - 30, C(31,12,12));
+  } else { say(`CAUGHT BY THE ${MONPALS[g.breed].name}! NO CANDY ON YOU, BUT THAT IS A STRIKE.`); float('STRIKE!', p.x, p.y - 30, C(31,12,12)); }
   if (G.hearts <= 0) cryHome();
 }
 function cryHome() {
   const h = HOME(); G.inv = CANDY.map(() => 0); G.cost = CANDY.map(() => 0);
   G.p.x = h.door.x; G.p.y = h.door.y + 6; G.p.z = 0; G.p.vz = 0; snapCamera();
-  nextDay('YOU RAN HOME CRYING AND DROPPED ALL YOUR CANDY. NEW DAY, FRESH START!');
+  nextDay('DETENTION! ALL YOUR CANDY WAS CONFISCATED. NEW DAY, FRESH START.');
 }
 
 // ───────────────────────── Kids on the street who want candy ─────────────────────────
-const KID_GROUNDS = new Set([TG, TF, TZ, TN, TK, TP, TS]);
+const KID_GROUNDS = new Set([TG, TF, TZ, TN, TK, TP, TS, TR, TL]);
 function spawnKid() {
   if (G.kids.length >= 5) return;
   for (let t = 0; t < 40; t++) {
     const x = rnd(40, MAP - 40) | 0, y = rnd(40, MAP - 40) | 0;
     if (!walkable(x, y) || !KID_GROUNDS.has(groundTile(x, y)) || Math.hypot(x - G.p.x, y - G.p.y) < 110) continue;
     const i = Math.random() < .45 ? 0 : Math.random()*CANDY.length | 0, want = 1 + (Math.random()*4 | 0);
-    G.kids.push({ x, y, who:pick(NPC_KIDS), candy:i, want, price:Math.round(CANDY[i].base * 1.7 * rnd(.9, 1.15) * (G.ev && G.ev.pay ? G.ev.pay[i] : 1)), life:rnd(25, 38) });
+    G.kids.push({ x, y, who:pick(NPC_KIDS), candy:i, want, price:Math.round(CANDY[i].base * 1.45 * rnd(.9, 1.15) * (G.ev && G.ev.pay ? G.ev.pay[i] : 1)), life:rnd(25, 38) });
     return;
   }
 }
@@ -795,7 +791,7 @@ function sellToKid(k) {
   if (G.inv[k.candy] <= 0) return false;
   const q = Math.min(G.inv[k.candy], k.want); G.inv[k.candy] -= q; if (!G.inv[k.candy]) G.cost[k.candy] = 0;
   const gain = q * k.price; G.cash += gain; G.earned += gain;
-  float('+' + money(gain), k.x, k.y - 34, C(10,31,16)); say(`A KID PAID ${money(k.price)} EACH FOR ${q} ${CANDY[k.candy].name}${q > 1 ? 'S' : ''}! (+${money(gain)})`);
+  float('+' + money(gain), k.x, k.y - 34, C(10,31,16)); say(`A STUDENT PAID ${money(k.price)} EACH FOR ${q} ${CANDY[k.candy].name}${q > 1 ? 'S' : ''}! (+${money(gain)})`);
   return true;
 }
 
@@ -907,23 +903,24 @@ function updatePlayer(dt) {
 
 // ───────────────────────── Days ─────────────────────────
 const EVENTS = [
-  () => ({ venue:{ PLAYGROUND:2 }, text:'BIRTHDAY PARTY AT THE PLAYGROUND! KIDS THERE PAY DOUBLE.' }),
-  () => ({ venue:{ ARCADE:1.4, MOVIES:1.4, PLAYGROUND:.7, 'SKATE PARK':.7 }, rain:true, text:'RAINY DAY. EVERYONE IS AT THE ARCADE AND THE MOVIES.' }),
-  () => ({ pay:[1, 1, .6, 1.3], text:'HEAT WAVE! CHOCO BARS ARE MELTING. KIDS WANT SOUR BLASTS.' }),
-  () => ({ store:'CANDY SHOP', mult:.7, text:'SALE AT THE CANDY SHOP: EVERYTHING 30% OFF!' }),
-  () => ({ store:'SUPER MART', candy:2, mult:2, text:'SUPER MART IS LOW ON CHOCO BARS. PRICES DOUBLED.' }),
-  () => ({ dogs:3, text:'DOG SHOW IN TOWN! EXTRA DOGS ARE RUNNING AROUND.' }),
-  () => ({ gift:200, text:'GRANDMA SLIPPED YOU $2.00!' }),
-  () => ({ gift:100, text:'YOU FOUND A $1.00 BILL ON THE SIDEWALK!' }),
-  () => ({ venue:{ 'SKATE PARK':1.6 }, text:'SKATE CONTEST TODAY! SKATERS ARE HUNGRY.' }),
+  () => ({ venue:{ GYM:2 }, text:'PEP RALLY IN THE GYM! STUDENTS THERE PAY DOUBLE.' }),
+  () => ({ venue:{ GYM:1.4, LIBRARY:1.4, 'ART ROOM':.8, 'SCIENCE LAB':.8 }, rain:true, text:'RAINY DAY. GYM CLASS IS INSIDE AND THE LIBRARY IS PACKED.' }),
+  () => ({ pay:[1, 1, .6, 1.3], text:'HEALTHY EATING WEEK. CHOCO BARS ARE OUT, SOUR BLASTS ARE IN.' }),
+  () => ({ store:'BAKE SALE', mult:.7, text:'BAKE SALE CLEARANCE: EVERYTHING 30% OFF!' }),
+  () => ({ store:'VENDING', candy:2, mult:2, text:'THE VENDING MACHINE IS JAMMED. CHOCO BARS COST DOUBLE.' }),
+  () => ({ mons:3, text:'SURPRISE INSPECTION! EXTRA HALL MONITORS TODAY.' }),
+  () => ({ gift:200, text:'YOU FOUND $2.00 IN AN OLD HOODIE POCKET!' }),
+  () => ({ gift:100, text:'A FRIEND PAID BACK THE $1.00 THEY OWED YOU.' }),
+  () => ({ venue:{ 'ART ROOM':1.6 }, text:'ART SHOW TODAY! THE ART ROOM IS PACKED.' }),
+  () => ({ venue:{ 'SCIENCE LAB':1.6 }, text:'SCIENCE FAIR TODAY! THE LAB IS FULL OF HUNGRY NERDS.' }),
 ];
 function nextDay(note) {
   G.day++; G.dayT = 0; G.hearts = HEARTS_MAX;
   if (G.day > TOTAL_DAYS) return endGame();
   G.ev = Math.random() < .55 ? pick(EVENTS)() : null;
   if (G.ev && G.ev.gift) { G.cash += G.ev.gift; G.earned += G.ev.gift; }
-  newPrices(); spawnDogs(); G.kids = [];
-  say(note || (G.ev ? `DAY ${G.day}: ${G.ev.text}` : `DAY ${G.day}. TIP: ${pick(TIPS)}`));
+  newPrices(); spawnMonitors(); G.kids = [];
+  say(note || (G.ev ? `SCHOOL DAY ${G.day}: ${G.ev.text}` : `SCHOOL DAY ${G.day}. TIP: ${pick(TIPS)}`));
 }
 
 // ───────────────────────── Update ─────────────────────────
@@ -934,7 +931,7 @@ function update(dt) {
   updatePlayer(dt);
   const p = G.p, k = Math.min(1, dt * 7);
   cam.x += (clamp(p.x - 128, 0, MAP - SZ) - cam.x) * k; cam.y += (clamp(p.y - p.z - 140, 0, MAP - SZ) - cam.y) * k;
-  updateDogs(dt); if (state !== 'play') return;
+  updateMonitors(dt); if (state !== 'play') return;
   G.kidT -= dt; if (G.kidT <= 0) { spawnKid(); G.kidT = rnd(3, 6); }
   for (let i = G.kids.length - 1; i >= 0; i--) { const c = G.kids[i]; c.life -= dt; if (Math.hypot(c.x - p.x, c.y - p.y) < 13 && p.z < 14 && sellToKid(c)) c.life = 0; if (c.life <= 0) G.kids.splice(i, 1); }
   for (let i = G.floats.length - 1; i >= 0; i--) { const f = G.floats[i]; f.life -= dt; f.y -= 20*dt; if (f.life <= 0) G.floats.splice(i, 1); }
@@ -975,7 +972,7 @@ function confirmDeal() {
     toast = { text:`BOUGHT ${qty} ${c.name}  -${money(total)}`, t:2.5 };
   } else {
     const total = sellQuote(L.name, i, qty); G.cash += total; G.earned += total; G.inv[i] -= qty; if (!G.inv[i]) G.cost[i] = 0;
-    G.sat[L.name][i] = Math.max(.45, G.sat[L.name][i] * Math.pow(.96, qty));
+    G.sat[L.name][i] = Math.max(.45, G.sat[L.name][i] * Math.pow(.94, qty));
     toast = { text:`SOLD ${qty} ${c.name}  +${money(total)}`, t:2.5 };
   }
   deal = null;
@@ -1006,7 +1003,7 @@ function endGame() {
   let best = 0; try { best = +localStorage.getItem('candyrush-best') || 0; } catch (e) {}
   G.over.best = G.over.score > best; if (G.over.best) try { localStorage.setItem('candyrush-best', G.over.score); } catch (e) {}
 }
-function start() { newGame(); state = 'play'; last = performance.now(); say('BUY CANDY AT STORES, SELL IT TO KIDS AT HANGOUTS. PRESS A TO JUMP OVER DOGS!'); }
+function start() { newGame(); state = 'play'; last = performance.now(); say('BUY CANDY, SELL IT TO STUDENTS. PRESS A TO HOP OVER TABLES AND HALL MONITORS!'); }
 // ───────────────────────── Render ─────────────────────────
 function shadowAt(x, y, r) { ctx.fillStyle = 'rgba(20,10,40,.35)'; ctx.fillRect(x - r + 2, y - 1, (r - 2)*2, 1); ctx.fillRect(x - r, y, r*2, 1); ctx.fillRect(x - r + 2, y + 1, (r - 2)*2, 1); }
 const charFrame = (anim, moving) => moving ? [1, 0, 2, 0][Math.floor(anim * 8) % 4] : 0;
@@ -1016,11 +1013,11 @@ function drawKid(who, fx, fy, face, frame, alpha = 1) {
   const dir = dirOf(face), img = SPR[who][dir][frame];
   if (alpha < 1) ctx.globalAlpha = alpha; blit(img, fx - 9, fy - 23, dir === 'side' && face.dx < 0); ctx.globalAlpha = 1;
 }
-function drawDog(g, fx, fy, alpha = 1) {
-  const dir = dirOf(g.face), fr = g.mode === 'chase' ? Math.floor(g.anim * 10) % 2 : g.mode === 'wander' && (g.dx || g.dy) ? Math.floor(g.anim * 5) % 2 : 0;
-  if (alpha < 1) ctx.globalAlpha = alpha; blit(DOGSPR[g.breed][dir][fr], fx - 10, fy - 15, dir === 'side' && g.face.dx < 0); ctx.globalAlpha = 1;
-  if (alpha === 1 && g.mode === 'dizzy') { ctx.fillStyle = C(31,28,6); for (let k = 0; k < 3; k++) { const a = T*7 + k*2.1; ctx.fillRect(fx + Math.round(Math.cos(a)*6), fy - 18 + Math.round(Math.sin(a)*2), 1, 1); } }
-  if (alpha === 1 && g.mode === 'chase' && Math.floor(T*6) % 2) text('!', fx - 2, fy - 26, C(31,10,10));
+function drawMonitor(g, fx, fy, alpha = 1) {
+  const dir = dirOf(g.face), moving = g.mode === 'chase' || (g.mode === 'wander' && (g.dx || g.dy)), fr = moving ? [1, 0, 2, 0][Math.floor(g.anim * (g.mode === 'chase' ? 10 : 6)) % 4] : 0;
+  if (alpha < 1) ctx.globalAlpha = alpha; blit(MONSPR[g.breed][dir][fr], fx - 9, fy - 23, dir === 'side' && g.face.dx < 0); ctx.globalAlpha = 1;
+  if (alpha === 1 && g.mode === 'dizzy') { ctx.fillStyle = C(31,28,6); for (let k = 0; k < 3; k++) { const a = T*7 + k*2.1; ctx.fillRect(fx + Math.round(Math.cos(a)*6), fy - 27 + Math.round(Math.sin(a)*2), 1, 1); } }
+  if (alpha === 1 && g.mode === 'chase' && Math.floor(T*6) % 2) text('!', fx - 2, fy - 33, C(31,10,10));
 }
 function drawPlayer(alpha) {
   const p = G.p, cx = Math.round(cam.x), cy = Math.round(cam.y), px = Math.round(p.x) - cx, py = Math.round(p.y - p.z) - cy, s = surfaceAt(p.x, p.y);
@@ -1053,7 +1050,7 @@ function drawWorld() {
   if (FOUNTAIN && inView(FOUNTAIN.x, FOUNTAIN.y)) list.push({ k:FOUNTAIN.y + 30, draw:() => { ctx.drawImage(FOUNTAIN.img, FOUNTAIN.x - cx, FOUNTAIN.y - cy); ctx.fillStyle = K.white; for (let k = 0; k < 4; k++) { const a = T*3 + k*1.6; ctx.fillRect(FOUNTAIN.x + 23 + Math.round(Math.cos(a)*7) - cx, FOUNTAIN.y + 6 + Math.round(Math.abs(Math.sin(a))*-6) - cy, 1, 1); } } });
   for (const d of DECOR_KIDS) if (inView(d.x, d.y)) { const bob = Math.floor(T*2 + d.x) % 2; chars.push({ k:d.y, draw:a => { if (a === 1) shadowAt(d.x - cx, d.y - cy, 5); drawKid(d.who, d.x - cx, d.y - cy - bob, d.face, 0, a); } }); }
   for (const k of G.kids) if (inView(k.x, k.y)) { const bob = Math.floor(T*2 + k.x) % 2; chars.push({ k:k.y, draw:a => { if (a === 1) shadowAt(k.x - cx, k.y - cy, 5); drawKid(k.who, k.x - cx, k.y - cy - bob, { dx:0, dy:1 }, 0, a); }, bubble:() => drawBubble(k, k.x - cx, k.y - cy) }); }
-  for (const g of G.dogs) if (inView(g.x, g.y)) { const fx = Math.round(g.x) - cx, fy = Math.round(g.y) - cy; chars.push({ k:g.y, draw:a => { if (a === 1) shadowAt(fx, fy, 6); drawDog(g, fx, fy, a); } }); }
+  for (const g of G.mons) if (inView(g.x, g.y)) { const fx = Math.round(g.x) - cx, fy = Math.round(g.y) - cy; chars.push({ k:g.y, draw:a => { if (a === 1) shadowAt(fx, fy, 5); drawMonitor(g, fx, fy, a); } }); }
   chars.push({ k:p.y + p.z + (nearDoor() >= 0 ? 6 : 0), draw:a => drawPlayer(a) });
   for (const c of chars) list.push(c);
   list.sort((a, b) => a.k - b.k);
@@ -1086,17 +1083,17 @@ function drawHUD() {
   const dot = (x, y, col, s = 2) => { ctx.fillStyle = col; ctx.fillRect(mx + Math.round(x * 48 / MAP) - (s >> 1), my + Math.round(y * 48 / MAP) - (s >> 1), s, s); };
   for (const l of LOCS) dot(l.door.x, l.door.y, l.kind === 'store' ? C(31,27,6) : l.kind === 'venue' ? C(31,10,22) : l.kind === 'bike' ? C(8,20,31) : C(10,31,10), 3);
   for (const k of G.kids) dot(k.x, k.y, C(31,31,31), 1);
-  for (const g of G.dogs) dot(g.x, g.y, C(25,13,5), 1);
+  for (const g of G.mons) dot(g.x, g.y, C(31,16,4), 2);
   if (Math.floor(T*4) % 2) dot(G.p.x, G.p.y, C(31,4,4), 2);
   let ty = 34;
-  if (G.ev) { const tag = G.ev.rain ? 'RAINY DAY' : G.ev.dogs ? 'DOG SHOW' : G.ev.store ? 'SALE!' : G.ev.pay ? 'HEAT WAVE' : G.ev.venue ? 'BIG CROWD' : ''; if (tag) { text(tag, 4, ty, C(31,14,22)); ty += 10; } }
+  if (G.ev) { const tag = G.ev.rain ? 'RAINY DAY' : G.ev.mons ? 'INSPECTION' : G.ev.store ? 'SALE!' : G.ev.pay ? 'HEALTH WEEK' : G.ev.venue ? 'BIG CROWD' : ''; if (tag) { text(tag, 4, ty, C(31,14,22)); ty += 10; } }
   if (ride()) { text(ride() === 'scooter' ? 'SCOOTER' : ride() === 'bike' ? 'BMX' : 'SKATE', 4, ty, C(10,31,31)); ty += 10; }
   const gx = 4, gy = ty + 2, gh = 26, fill = G.p.cd > 0 ? 1 - G.p.cd / DASH_CD : 1;
   rr(gx, gy, 9, gh, K.out); rr(gx + 1, gy + 1, 7, gh - 2, K.winLight); ctx.fillStyle = K.dark[0]; ctx.fillRect(gx + 2, gy + 2, 5, gh - 4);
   const fh = Math.round((gh - 4) * fill); ctx.fillStyle = fill >= 1 ? C(31,12,22) : C(18,6,13); ctx.fillRect(gx + 2, gy + 2 + (gh - 4 - fh), 5, fh);
   const n = nearDoor();
   if (state === 'play' && n >= 0) {
-    const L = LOCS[n], verb = L.kind === 'store' ? 'BUY AT' : L.kind === 'venue' ? 'SELL AT' : L.kind === 'bike' ? 'SHOP AT' : 'GO', label = `A: ${verb} ${L.name}`, w = label.length*6 + 8;
+    const L = LOCS[n], verb = L.kind === 'store' ? 'BUY AT' : L.kind === 'venue' ? 'SELL AT' : L.kind === 'bike' ? 'SHOP AT' : 'OPEN', label = `A: ${verb} ${L.name}`, w = label.length*6 + 8;
     button(clamp(Math.round(G.p.x - cam.x) - (w >> 1), 2, SZ - w - 2), Math.round(G.p.y - cam.y) - 40 - (Math.floor(T*3) % 2), label, pressA, true, C(31,27,6));
   }
   const m = G.msg;
@@ -1114,14 +1111,14 @@ function drawMenu() {
   const L = LOC(), rows = menuRows(); win(4, 4, 248, 248);
   text(L.name, 128, 11, L.color, { align:'c' });
   text(`CASH ${money(G.cash)}`, 10, 23, K.white); text(`BAG ${used()}/${capacity()}`, 246, 23, K.dim, { align:'r' });
-  const sub = L.kind === 'store' ? 'CANDY FOR SALE' : L.kind === 'venue' ? 'KIDS HERE WILL PAY' : L.kind === 'bike' ? 'GEAR UP!' : 'HOME SWEET HOME';
+  const sub = L.kind === 'store' ? 'CANDY FOR SALE' : L.kind === 'venue' ? 'STUDENTS HERE WILL PAY' : L.kind === 'bike' ? 'UNCLAIMED GEAR, CHEAP!' : 'YOUR STASH SPOT';
   text(sub, 10, 34, C(31,14,22));
   const rh = L.kind === 'bike' ? 22 : 20, y0 = 46;
   rows.forEach((r, ri) => {
     const y = y0 + ri*rh;
     ui.hits.push({ x:8, y, w:240, h:rh - 1, fn:() => { sel = ri; } });
     if (sel === ri) { ctx.fillStyle = C(10,6,26); ctx.fillRect(8, y - 2, 240, rh - 2); ctx.drawImage(CURSOR, 9 + (Math.floor(T*4) % 2), y + 1); }
-    if (r.leave) { ui.hits.push({ x:8, y, w:240, h:rh - 1, fn:closeMenu }); text('LEAVE', 18, y + 2, C(31,27,6)); text('BACK OUTSIDE', 244, y + 2, K.dim, { align:'r' }); return; }
+    if (r.leave) { ui.hits.push({ x:8, y, w:240, h:rh - 1, fn:closeMenu }); text('LEAVE', 18, y + 2, C(31,27,6)); text('BACK TO THE HALLS', 244, y + 2, K.dim, { align:'r' }); return; }
     if (r.candy !== undefined) {
       const i = r.candy, c = CANDY[i]; ctx.drawImage(CANDY_IMG[i], 18, y);
       text(c.name, 30, y + 2, c.color);
@@ -1137,12 +1134,12 @@ function drawMenu() {
       text(have ? 'OWNED' : money(u.price), 244, y, have ? C(10,31,14) : G.cash >= u.price ? C(31,27,6) : K.dim, { align:'r' });
       ui.hits.push({ x:8, y, w:240, h:rh - 1, fn:() => { sel = ri; marketBtn('a'); } });
     } else if (r.nap) {
-      text('NAP UNTIL MORNING', 18, y + 2, K.white); text('FULL HEARTS', 244, y + 2, K.dim, { align:'r' });
+      text('SKIP TO TOMORROW', 18, y + 2, K.white); text('STRIKES RESET', 244, y + 2, K.dim, { align:'r' });
       ui.hits.push({ x:8, y, w:240, h:rh - 1, fn:() => { sel = ri; deal = { kind:'nap' }; } });
     }
   });
   if (toast) text(toast.text, 128, 220, toast.bad ? C(31,10,10) : C(10,31,14), { align:'c' });
-  else if (L.kind === 'venue') text('KIDS PAY LESS FOR EACH ONE YOU SELL', 128, 220, C(20,14,26), { align:'c', shadow:false });
+  else if (L.kind === 'venue') text('THEY PAY LESS FOR EACH ONE YOU SELL', 128, 220, C(20,14,26), { align:'c', shadow:false });
   else if (L.kind === 'store') text('STORES DO NOT BUY CANDY BACK', 128, 220, C(20,14,26), { align:'c', shadow:false });
   const r = rows[sel];
   text(r.leave ? 'A/B LEAVE' : r.candy !== undefined ? (L.kind === 'store' ? 'A BUY...   B LEAVE' : 'A SELL...   B LEAVE') : 'A CHOOSE   B LEAVE', 128, 234, C(31,27,6), { align:'c' });
@@ -1154,9 +1151,9 @@ function drawDeal() {
   win(x, y, w, h);
   if (deal.kind === 'upgrade' || deal.kind === 'nap') {
     const u = deal.kind === 'upgrade' ? UPGRADES[deal.i] : null;
-    text(u ? `BUY ${u.name}?` : 'NAP UNTIL MORNING?', 128, y + 14, C(31,27,6), { align:'c' });
+    text(u ? `BUY ${u.name}?` : 'SKIP TO TOMORROW?', 128, y + 14, C(31,27,6), { align:'c' });
     text(u ? u.desc : 'THE REST OF TODAY IS SKIPPED.', 128, y + 32, K.white, { align:'c' });
-    text(u ? `COSTS ${money(u.price)}` : 'YOUR HEARTS REFILL.', 128, y + 48, K.dim, { align:'c' });
+    text(u ? `COSTS ${money(u.price)}` : 'YOUR STRIKES RESET.', 128, y + 48, K.dim, { align:'c' });
     if (u) text(`CASH AFTER ${money(G.cash - u.price)}`, 128, y + 60, K.dim, { align:'c' });
     button(56, y + 96, ' A: YES ', confirmDeal, true, C(31,27,6)); button(136, y + 96, ' B: NO ', () => { deal = null; }, true);
     return;
@@ -1186,10 +1183,10 @@ function drawTitle() {
   const wob = Math.round(Math.sin(T*2));
   text('CANDY RUSH', 128, 22 + wob, C(6,10,26), { align:'c', scale:3, shadow:false });
   text('CANDY RUSH', 128, 19 + wob, C(31,12,22), { align:'c', scale:3, shadow:false });
-  text('A SUMMER HUSTLE', 128, 48, C(31,27,6), { align:'c' });
+  text('HIGH SCHOOL HUSTLE', 128, 48, C(31,27,6), { align:'c' });
   for (let i = 0; i < 4; i++) ctx.drawImage(CANDY_IMG[i], 92 + i*20, 58);
   win(8, 70, 240, 124);
-  const L = ["IT'S SUMMER VACATION!", 'YOU HAVE $5.00 AND 30 DAYS.', '', 'BUY CANDY AT STORES,', 'SELL IT TO KIDS AT HANGOUTS.', 'SAVE UP FOR A SKATEBOARD AND BMX.', 'A: JUMP / ENTER    B: DASH', 'JUMP OVER DOGS OR BOUNCE ON THEM!'];
+  const L = ['THE SCHOOL BANNED SWEETS AT LUNCH.', 'YOU HAVE $5.00 AND 30 SCHOOL DAYS.', '', 'BUY AT THE CAFETERIA AND VENDING,', 'SELL IN THE GYM, LIBRARY & CLASS.', 'SAVE UP FOR A SKATEBOARD AND BMX.', 'A: JUMP / ENTER    B: DASH', 'HOP TABLES TO DODGE HALL MONITORS!'];
   L.forEach((l, i) => text(l, 128, 79 + i*13, i < 2 ? K.white : i > 5 ? C(31,27,6) : K.dim, { align:'c' }));
   if (Math.floor(T*2) % 2) text('PRESS A', 128, 200, K.white, { align:'c' });
   button(100, 214, ' START ', start, true, C(31,27,6));
@@ -1198,12 +1195,12 @@ function drawTitle() {
 }
 function drawOver() {
   ctx.drawImage(DITHER, 0, 0); win(20, 56, 216, 150);
-  text("SUMMER'S OVER!", 128, 66, C(31,12,22), { align:'c', scale:2 });
+  text('SCHOOL IS OUT!', 128, 66, C(31,12,22), { align:'c', scale:2 });
   const gear = UPGRADES.filter(u => G.own[u.id]);
   text(`SAVINGS ${money(G.cash)}`, 128, 90, K.white, { align:'c' });
   text(`GEAR ${money(score() - G.cash)}`, 128, 101, K.white, { align:'c' });
   text(`TOTAL ${money(G.over.score)}`, 128, 116, C(10,31,14), { align:'c' });
-  text(gear.length ? `${gear.length} OF ${UPGRADES.length} UPGRADES` : 'NO GEAR THIS SUMMER', 128, 130, K.dim, { align:'c' });
+  text(gear.length ? `${gear.length} OF ${UPGRADES.length} UPGRADES` : 'NO GEAR THIS SEMESTER', 128, 130, K.dim, { align:'c' });
   if (G.over.best) text('NEW BEST!', 128, 144, C(31,27,6), { align:'c' });
   if (Math.floor(T*2) % 2) text('PRESS A', 128, 162, K.white, { align:'c' });
   button(92, 176, ' PLAY AGAIN ', start, true, C(31,27,6));
@@ -1237,7 +1234,7 @@ function drawBoot(dt) {
   text('SWEETSOFT', 128, y, C(31,12,22), { align:'c', scale:2, shadow:C(6,4,20) });
   if (y >= 108) {
     if (!chime.done) { chime.done = true; chime(); }
-    text('SUMMER EDITION', 128, y + 22, C(31,27,6), { align:'c' });
+    text('HIGH SCHOOL EDITION', 128, y + 22, C(31,27,6), { align:'c' });
   }
   if (bootT > 2.6) state = 'title';
 }
