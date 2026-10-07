@@ -1,37 +1,46 @@
 name: VPS Run Command
 
-# Bridge that lets Claude Code (mobile/web, which reaches the VPS through GitHub)
-# run arbitrary shell commands on the box. Dispatch from the Actions tab or:
+# Full admin shell on the VPS, run from GitHub (e.g. from a phone):
 #   gh workflow run vps-run.yml -f command="systemctl status caddy --no-pager"
+# Every run waits for approval in the `vps` environment, and the host key is
+# pinned, so a run can only reach the box you configured.
 on:
   workflow_dispatch:
     inputs:
       command:
-        description: 'Shell command to run on the VPS as root'
+        description: 'Shell command to run on the VPS as VPS_USER (admin)'
         required: true
         default: 'uptime'
+
+permissions:
+  contents: read
 
 jobs:
   run:
     runs-on: ubuntu-latest
+    environment: vps
     steps:
       - name: Set up SSH
         env:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_HOST_KEY: ${{ secrets.VPS_HOST_KEY }}
         run: |
           mkdir -p ~/.ssh
           printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          printf '%s %s\n' "$VPS_HOST" "$VPS_HOST_KEY" > ~/.ssh/known_hosts
 
-      # The command is passed through env, never interpolated into the shell
-      # block directly, so multi-line/quoting-heavy commands survive intact.
+      # The command goes through env, never interpolated into the script.
       - name: Run command on VPS
         env:
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
           CMD: ${{ github.event.inputs.command }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new \
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts \
             "$VPS_USER@$VPS_HOST" "$CMD"
+
+      - name: Remove key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

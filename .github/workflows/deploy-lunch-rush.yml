@@ -1,8 +1,7 @@
 name: Deploy Lunch Rush
 
-# Ships lunch-rush/ to the VPS and reloads Caddy.
-# The card-URL rewrite happens here rather than by hand, so every deploy is
-# reproducible and nobody has to remember to patch index.html afterwards.
+# Ships lunch-rush/ to the VPS and reloads Caddy as the restricted `deploy`
+# user (not root). Requires approval in the `vps` environment.
 on:
   workflow_dispatch:
     inputs:
@@ -11,6 +10,9 @@ on:
         required: false
         default: 'ccr-b2dbb274-5javdt'
 
+permissions:
+  contents: read
+
 concurrency:
   group: deploy-lunch-rush
   cancel-in-progress: false
@@ -18,6 +20,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: vps
     env:
       DOMAIN: lunch-rush.membersonly.cc
       WEBROOT: /var/www/lunch-rush
@@ -37,22 +40,25 @@ jobs:
 
       - name: Set up SSH
         env:
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_HOST_KEY: ${{ secrets.VPS_HOST_KEY }}
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          printf '%s %s\n' "$VPS_HOST" "$VPS_HOST_KEY" > ~/.ssh/known_hosts
 
       - name: Sync to VPS and reload Caddy
         env:
-          VPS_USER: ${{ secrets.VPS_USER }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
-          rsync -az --delete \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new" \
-            lunch-rush/ "$VPS_USER@$VPS_HOST:$WEBROOT/"
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new \
-            "$VPS_USER@$VPS_HOST" \
-            "chown -R caddy:caddy $WEBROOT && systemctl reload caddy && echo deployed $WEBROOT"
+          SSH="ssh -i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
+          rsync -az --delete --chmod=D755,F644 -e "$SSH" \
+            lunch-rush/ "$DEPLOY_USER@$VPS_HOST:$WEBROOT/"
+          $SSH "$DEPLOY_USER@$VPS_HOST" "sudo -n /usr/bin/systemctl reload caddy && echo deployed $WEBROOT"
+
+      - name: Remove key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
