@@ -1,0 +1,58 @@
+name: Deploy Lunch Rush
+
+# Ships lunch-rush/ to the VPS and reloads Caddy.
+# The card-URL rewrite happens here rather than by hand, so every deploy is
+# reproducible and nobody has to remember to patch index.html afterwards.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref containing lunch-rush/'
+        required: false
+        default: 'ccr-b2dbb274-5javdt'
+
+concurrency:
+  group: deploy-lunch-rush
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      DOMAIN: lunch-rush.membersonly.cc
+      WEBROOT: /var/www/lunch-rush
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref }}
+
+      - name: Rewrite card URLs to the live domain
+        run: |
+          sed -i "s#https://YOUR-APP.vercel.app/lunch-rush#https://${DOMAIN}#g" lunch-rush/index.html
+          if grep -q "YOUR-APP.vercel.app" lunch-rush/index.html; then
+            echo "::error::placeholder URLs still present after rewrite"
+            exit 1
+          fi
+          echo "card URLs -> https://${DOMAIN}"
+
+      - name: Set up SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Sync to VPS and reload Caddy
+        env:
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new" \
+            lunch-rush/ "$VPS_USER@$VPS_HOST:$WEBROOT/"
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new \
+            "$VPS_USER@$VPS_HOST" \
+            "chown -R caddy:caddy $WEBROOT && systemctl reload caddy && echo deployed $WEBROOT"
