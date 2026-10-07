@@ -57,7 +57,7 @@ jobs:
           SSH="ssh -i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
           rsync -az --delete --chmod=D755,F644 -e "$SSH" \
             lunch-rush/ "$DEPLOY_USER@$VPS_HOST:$WEBROOT/"
-          $SSH "$DEPLOY_USER@$VPS_HOST" "sudo -n /bin/systemctl reload caddy && echo deployed $WEBROOT"
+          $SSH "$DEPLOY_USER@$VPS_HOST" "sudo -n /usr/bin/systemctl reload caddy && echo deployed $WEBROOT"
 
       - name: Remove key
         if: always()
